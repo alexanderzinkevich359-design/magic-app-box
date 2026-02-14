@@ -2,9 +2,10 @@ import { ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Menu, LogOut, Home, Users, Calendar, CreditCard,
-  BarChart3, Dumbbell, Target, Bell, User
+  BarChart3, Dumbbell, Target, Video, Activity
 } from "lucide-react";
 
 type NavItem = { label: string; path: string; icon: ReactNode };
@@ -12,21 +13,23 @@ type NavItem = { label: string; path: string; icon: ReactNode };
 const roleNavItems: Record<string, NavItem[]> = {
   coach: [
     { label: "Dashboard", path: "/coach", icon: <Home className="h-4 w-4" /> },
+    { label: "Programs", path: "/coach/programs", icon: <Dumbbell className="h-4 w-4" /> },
     { label: "Athletes", path: "/coach/athletes", icon: <Users className="h-4 w-4" /> },
-    { label: "Schedule", path: "/coach/schedule", icon: <Calendar className="h-4 w-4" /> },
+    { label: "Video Review", path: "/coach/videos", icon: <Video className="h-4 w-4" /> },
     { label: "Analytics", path: "/coach/analytics", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   parent: [
     { label: "Dashboard", path: "/parent", icon: <Home className="h-4 w-4" /> },
     { label: "Progress", path: "/parent/progress", icon: <BarChart3 className="h-4 w-4" /> },
-    { label: "Subscription", path: "/parent/subscription", icon: <CreditCard className="h-4 w-4" /> },
     { label: "Schedule", path: "/parent/schedule", icon: <Calendar className="h-4 w-4" /> },
+    { label: "Subscription", path: "/parent/subscription", icon: <CreditCard className="h-4 w-4" /> },
   ],
   athlete: [
     { label: "Dashboard", path: "/athlete", icon: <Home className="h-4 w-4" /> },
-    { label: "Training", path: "/athlete/training", icon: <Dumbbell className="h-4 w-4" /> },
+    { label: "Programs", path: "/athlete/programs", icon: <Dumbbell className="h-4 w-4" /> },
+    { label: "Upload Video", path: "/athlete/upload", icon: <Video className="h-4 w-4" /> },
+    { label: "Metrics", path: "/athlete/metrics", icon: <Activity className="h-4 w-4" /> },
     { label: "Goals", path: "/athlete/goals", icon: <Target className="h-4 w-4" /> },
-    { label: "Progress", path: "/athlete/progress", icon: <BarChart3 className="h-4 w-4" /> },
   ],
 };
 
@@ -38,9 +41,16 @@ interface DashboardLayoutProps {
 const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { signOut, profile } = useAuth();
   const [open, setOpen] = useState(false);
   const navItems = roleNavItems[role];
   const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+  const displayName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : roleLabel;
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
 
   const NavLinks = ({ onClick }: { onClick?: () => void }) => (
     <nav className="flex flex-col gap-1">
@@ -70,7 +80,7 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
             <Target className="h-4 w-4 text-primary-foreground" />
           </div>
-          <span className="font-semibold font-['Space_Grotesk']">AthletePro</span>
+          <span className="font-semibold font-['Space_Grotesk']">Zink</span>
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -78,12 +88,13 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
           </SheetTrigger>
           <SheetContent side="left" className="w-64 bg-card">
             <SheetTitle className="sr-only">Navigation</SheetTitle>
-            <div className="mb-6 mt-2">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">{roleLabel} Portal</p>
+            <div className="mb-2 mt-2">
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">{roleLabel}</p>
             </div>
             <NavLinks onClick={() => setOpen(false)} />
             <div className="mt-auto pt-8">
-              <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={() => navigate("/")}>
+              <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4" /> Sign Out
               </Button>
             </div>
@@ -98,14 +109,17 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <Target className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-semibold font-['Space_Grotesk']">AthletePro</span>
+            <span className="text-lg font-semibold font-['Space_Grotesk']">Zink Performance</span>
           </div>
           <div className="px-4 py-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-4 px-3">{roleLabel} Portal</p>
+            <div className="mb-4 px-3">
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">{roleLabel}</p>
+            </div>
             <NavLinks />
           </div>
           <div className="mt-auto px-4 pb-4">
-            <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={() => navigate("/")}>
+            <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleSignOut}>
               <LogOut className="h-4 w-4" /> Sign Out
             </Button>
           </div>
