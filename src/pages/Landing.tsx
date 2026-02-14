@@ -55,7 +55,7 @@ const Landing = () => {
             <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
               <Target className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold font-['Space_Grotesk']">Zink Performance</span>
+            <span className="text-xl font-bold font-['Space_Grotesk']">ClipMVP</span>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="ghost" asChild><Link to="/login">Sign In</Link></Button>
@@ -178,9 +178,9 @@ const Landing = () => {
             <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
               <Target className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
-            <span className="font-semibold font-['Space_Grotesk']">Zink Performance</span>
+            <span className="font-semibold font-['Space_Grotesk']">ClipMVP</span>
           </div>
-          <p className="text-sm text-muted-foreground">&copy; 2026 Zink Performance. All rights reserved.</p>
+          <p className="text-sm text-muted-foreground">&copy; 2026 ClipMVP. All rights reserved.</p>
         </div>
       </footer>
     </div>

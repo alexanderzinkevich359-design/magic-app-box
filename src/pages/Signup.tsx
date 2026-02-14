@@ -51,7 +51,7 @@ const Signup = () => {
           <div className="mx-auto mb-4 h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
             <Target className="h-6 w-6 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl font-['Space_Grotesk']">Join Zink Performance</CardTitle>
+          <CardTitle className="text-2xl font-['Space_Grotesk']">Join ClipMVP</CardTitle>
           <CardDescription>Create your account to get started</CardDescription>
         </CardHeader>
         <CardContent>

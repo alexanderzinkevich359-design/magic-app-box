@@ -44,7 +44,7 @@ const Login = () => {
             <Target className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-['Space_Grotesk']">Welcome Back</CardTitle>
-          <CardDescription>Sign in to Zink Performance</CardDescription>
+          <CardDescription>Sign in to ClipMVP</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
