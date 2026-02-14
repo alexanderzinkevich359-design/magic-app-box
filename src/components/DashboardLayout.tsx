@@ -80,7 +80,7 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
             <Target className="h-4 w-4 text-primary-foreground" />
           </div>
-          <span className="font-semibold font-['Space_Grotesk']">Zink</span>
+          <span className="font-semibold font-['Space_Grotesk']">ClipMVP</span>
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -109,7 +109,7 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <Target className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="text-lg font-semibold font-['Space_Grotesk']">Zink Performance</span>
+            <span className="text-lg font-semibold font-['Space_Grotesk']">ClipMVP</span>
           </div>
           <div className="px-4 py-4">
             <div className="mb-4 px-3">
