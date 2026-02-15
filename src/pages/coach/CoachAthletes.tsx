@@ -69,7 +69,7 @@ const CoachAthletes = () => {
 
   // Dialog states
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [selectedAthlete, setSelectedAthlete] = useState<AthleteWithDetails | null>(null);
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [showAiPlan, setShowAiPlan] = useState(false);
 
@@ -122,6 +122,9 @@ const CoachAthletes = () => {
     },
     enabled: !!user,
   });
+
+  // Derive selectedAthlete from query data so it stays in sync
+  const selectedAthlete = selectedAthleteId ? athletes.find((a) => a.athlete_user_id === selectedAthleteId) ?? null : null;
 
   // Add note mutation
   const addNoteMutation = useMutation({
@@ -322,7 +325,7 @@ const CoachAthletes = () => {
   });
 
   const openAthleteDetail = (athlete: AthleteWithDetails) => {
-    setSelectedAthlete(athlete);
+    setSelectedAthleteId(athlete.athlete_user_id);
     setShowAiPlan(false);
     setAiPlan(null);
   };
@@ -466,7 +469,7 @@ const CoachAthletes = () => {
       </Dialog>
 
       {/* Athlete Detail Dialog */}
-      <Dialog open={!!selectedAthlete} onOpenChange={(open) => { if (!open) { setSelectedAthlete(null); setShowAiPlan(false); } }}>
+      <Dialog open={!!selectedAthlete} onOpenChange={(open) => { if (!open) { setSelectedAthleteId(null); setShowAiPlan(false); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedAthlete && (
             <>
