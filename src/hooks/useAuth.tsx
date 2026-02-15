@@ -8,10 +8,10 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   role: AppRole | null;
-  profile: { first_name: string; last_name: string; avatar_url: string | null } | null;
+  profile: { first_name: string; last_name: string; avatar_url: string | null; phone: string | null } | null;
   loading: boolean;
-  signUp: (phone: string, password: string, firstName: string, lastName: string, role: AppRole) => Promise<{ error: Error | null }>;
-  signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, firstName: string, lastName: string, role: AppRole, phone: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchRoleAndProfile = async (userId: string) => {
     const [roleRes, profileRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId).single(),
-      supabase.from("profiles").select("first_name, last_name, avatar_url").eq("user_id", userId).single(),
+      supabase.from("profiles").select("first_name, last_name, avatar_url, phone").eq("user_id", userId).single(),
     ]);
     if (roleRes.data) setRole(roleRes.data.role as AppRole);
     if (profileRes.data) setProfile(profileRes.data);
@@ -58,19 +58,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (phone: string, password: string, firstName: string, lastName: string, role: AppRole) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, role: AppRole, phone: string) => {
     const { error } = await supabase.auth.signUp({
-      phone,
+      email,
       password,
       options: {
-        data: { first_name: firstName, last_name: lastName, role },
+        emailRedirectTo: window.location.origin,
+        data: { first_name: firstName, last_name: lastName, role, phone },
       },
     });
     return { error: error as Error | null };
   };
 
-  const signIn = async (phone: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ phone, password });
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error as Error | null };
   };
 
