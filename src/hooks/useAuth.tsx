@@ -10,8 +10,8 @@ interface AuthContextType {
   role: AppRole | null;
   profile: { first_name: string; last_name: string; avatar_url: string | null } | null;
   loading: boolean;
-  signUp: (email: string, password: string, firstName: string, lastName: string, role: AppRole) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (phone: string, password: string, firstName: string, lastName: string, role: AppRole) => Promise<{ error: Error | null }>;
+  signIn: (phone: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -34,12 +34,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Set up auth listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        // Use setTimeout to avoid potential deadlock with Supabase auth
         setTimeout(() => fetchRoleAndProfile(session.user.id), 0);
       } else {
         setRole(null);
@@ -48,7 +46,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    // THEN check existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -61,20 +58,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, firstName: string, lastName: string, role: AppRole) => {
+  const signUp = async (phone: string, password: string, firstName: string, lastName: string, role: AppRole) => {
     const { error } = await supabase.auth.signUp({
-      email,
+      phone,
       password,
       options: {
-        emailRedirectTo: window.location.origin,
         data: { first_name: firstName, last_name: lastName, role },
       },
     });
     return { error: error as Error | null };
   };
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const signIn = async (phone: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ phone, password });
     return { error: error as Error | null };
   };
 
