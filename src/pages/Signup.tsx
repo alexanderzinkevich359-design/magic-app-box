@@ -21,7 +21,7 @@ const Signup = () => {
   const [selectedRole, setSelectedRole] = useState<"coach" | "athlete" | "parent" | "">("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +29,8 @@ const Signup = () => {
     e.preventDefault();
     if (!selectedRole) return;
     setLoading(true);
-    const { error } = await signUp(email, password, firstName, lastName, selectedRole);
+    const formattedPhone = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
+    const { error } = await signUp(formattedPhone, password, firstName, lastName, selectedRole);
     setLoading(false);
 
     if (error) {
@@ -38,8 +39,8 @@ const Signup = () => {
     }
 
     toast({
-      title: "Check your email",
-      description: "We sent you a confirmation link. Please verify your email to sign in.",
+      title: "Account created!",
+      description: "You can now sign in with your phone number.",
     });
     navigate("/login");
   };
@@ -87,8 +88,8 @@ const Signup = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

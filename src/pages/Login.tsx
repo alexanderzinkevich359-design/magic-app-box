@@ -10,28 +10,25 @@ import { useToast } from "@/hooks/use-toast";
 
 const Login = () => {
   const navigate = useNavigate();
-  const { signIn, role } = useAuth();
+  const { signIn, role, user } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await signIn(email, password);
+    const formattedPhone = phone.startsWith("+") ? phone : `+1${phone.replace(/\D/g, "")}`;
+    const { error } = await signIn(formattedPhone, password);
     setLoading(false);
 
     if (error) {
       toast({ title: "Login failed", description: error.message, variant: "destructive" });
       return;
     }
-
-    // Role will be loaded by auth context, redirect handled by effect
   };
 
-  // Redirect when role is loaded after login
-  const { user } = useAuth();
   if (user && role) {
     navigate(`/${role}`, { replace: true });
   }
@@ -49,8 +46,8 @@ const Login = () => {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
