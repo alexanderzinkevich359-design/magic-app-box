@@ -21,6 +21,71 @@ const INTENSITIES = ["low", "medium", "high"] as const;
 
 const PITCH_TYPES = ["Fastball", "Curveball", "Slider", "Changeup", "Cutter", "Sinker", "Splitter", "Knuckleball"] as const;
 
+const SORENESS_AREAS = [
+  "Shoulder", "Elbow", "Forearm/Wrist", "Upper Back", "Lower Back",
+  "Hip/Groin", "Quad", "Hamstring", "Knee", "Calf/Ankle",
+] as const;
+
+const STRETCHING_SUGGESTIONS: Record<string, { name: string; description: string }[]> = {
+  Shoulder: [
+    { name: "Cross-body shoulder stretch", description: "Hold arm across chest for 30s each side" },
+    { name: "Sleeper stretch", description: "Lie on side, press forearm down gently. 3×30s" },
+    { name: "Wall angels", description: "Back against wall, slide arms up/down. 2×10 reps" },
+    { name: "Band pull-aparts", description: "Light band, 3×15 at chest height" },
+  ],
+  Elbow: [
+    { name: "Wrist flexor stretch", description: "Extend arm, pull fingers back. 3×30s" },
+    { name: "Wrist extensor stretch", description: "Extend arm palm down, pull fingers toward you. 3×30s" },
+    { name: "Pronation/supination", description: "Light weight, rotate forearm slowly. 2×15" },
+    { name: "Reverse curls", description: "Very light weight, 2×12 to promote blood flow" },
+  ],
+  "Forearm/Wrist": [
+    { name: "Wrist circles", description: "Slow circles both directions, 2×10 each" },
+    { name: "Finger extensions with rubber band", description: "Spread fingers against band, 3×15" },
+    { name: "Prayer stretch", description: "Palms together, press down. Hold 30s" },
+  ],
+  "Upper Back": [
+    { name: "Cat-cow stretch", description: "Alternate arching and rounding. 2×10 reps" },
+    { name: "Thoracic spine rotation", description: "Side-lying, rotate upper body. 2×10 each side" },
+    { name: "Child's pose with reach", description: "Walk hands left/right to stretch lats. 30s each" },
+  ],
+  "Lower Back": [
+    { name: "Knee-to-chest stretch", description: "Lying on back, pull knee to chest. 3×30s each" },
+    { name: "Piriformis stretch", description: "Figure-4 position, pull through. 3×30s each" },
+    { name: "Pelvic tilts", description: "Lying on back, flatten lower back to floor. 2×15" },
+    { name: "Dead bug", description: "Core stability exercise, 2×10 each side" },
+  ],
+  "Hip/Groin": [
+    { name: "90/90 hip stretch", description: "Sit with legs at 90°, rotate between sides. 2×10" },
+    { name: "Butterfly stretch", description: "Sit with soles together, press knees down. 3×30s" },
+    { name: "Kneeling hip flexor stretch", description: "Lunge position, push hips forward. 3×30s each" },
+    { name: "Lateral lunge", description: "Side lunge with bodyweight, 2×8 each side" },
+  ],
+  Quad: [
+    { name: "Standing quad stretch", description: "Pull heel to glute, keep knees together. 3×30s" },
+    { name: "Couch stretch", description: "Rear foot on wall/bench, tall posture. 2×45s each" },
+    { name: "Foam roll quads", description: "Slow rolls, pause on tender spots. 60s each leg" },
+  ],
+  Hamstring: [
+    { name: "Standing toe touch", description: "Hinge at hips, reach for toes. 3×30s" },
+    { name: "Seated hamstring stretch", description: "One leg extended, reach forward. 3×30s each" },
+    { name: "RDL with bodyweight", description: "Single-leg hinge, 2×8 each side for eccentric load" },
+    { name: "Foam roll hamstrings", description: "Slow rolls with cross-leg pressure. 60s each" },
+  ],
+  Knee: [
+    { name: "Quad set", description: "Seated, tighten quad pressing knee flat. 3×10 with 5s hold" },
+    { name: "Terminal knee extensions", description: "Band behind knee, extend fully. 3×12" },
+    { name: "Wall sit", description: "Hold 30s, ensure knees don't pass toes" },
+    { name: "Calf raises", description: "Slow and controlled, 2×15 to support knee stability" },
+  ],
+  "Calf/Ankle": [
+    { name: "Standing calf stretch", description: "Wall lean, straight back leg. 3×30s each" },
+    { name: "Soleus stretch", description: "Wall lean, bent back knee. 3×30s each" },
+    { name: "Ankle circles", description: "Both directions, 2×10 each foot" },
+    { name: "Banded ankle dorsiflexion", description: "Band around ankle, drive knee forward. 2×10" },
+  ],
+};
+
 type Position = "Pitcher" | "Catcher" | "Infielder" | "Outfielder" | "Hitter";
 
 const SessionLogger = () => {
@@ -41,6 +106,7 @@ const SessionLogger = () => {
   const [notes, setNotes] = useState("");
   const [sorenessFlag, setSorenessFlag] = useState(false);
   const [injuryNote, setInjuryNote] = useState("");
+  const [sorenessAreas, setSorenessAreas] = useState<string[]>([]);
 
   // Pitcher-specific: pitch type counts
   const [pitchCounts, setPitchCounts] = useState<Record<string, string>>({});
@@ -150,6 +216,7 @@ const SessionLogger = () => {
     setNotes("");
     setSorenessFlag(false);
     setInjuryNote("");
+    setSorenessAreas([]);
     setPitchCounts({});
     setSubmitted(false);
   };
@@ -314,21 +381,77 @@ const SessionLogger = () => {
           {/* Soreness */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <Switch checked={sorenessFlag} onCheckedChange={setSorenessFlag} />
+              <Switch checked={sorenessFlag} onCheckedChange={(v) => { setSorenessFlag(v); if (!v) setSorenessAreas([]); }} />
               <Label>Athlete reported soreness / injury</Label>
             </div>
             {sorenessFlag && (
-              <div className="space-y-2">
-                <Label>Injury / Soreness Details</Label>
-                <Input
-                  placeholder={
-                    position === "Pitcher" ? "e.g. Sore right shoulder, elbow tightness" :
-                    position === "Catcher" ? "e.g. Sore knees, hip tightness" :
-                    "e.g. Sore right shoulder"
-                  }
-                  value={injuryNote}
-                  onChange={(e) => setInjuryNote(e.target.value)}
-                />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Injury / Soreness Details</Label>
+                  <Input
+                    placeholder={
+                      position === "Pitcher" ? "e.g. Sore right shoulder, elbow tightness" :
+                      position === "Catcher" ? "e.g. Sore knees, hip tightness" :
+                      "e.g. Sore right shoulder"
+                    }
+                    value={injuryNote}
+                    onChange={(e) => setInjuryNote(e.target.value)}
+                  />
+                </div>
+
+                {/* Soreness area selector */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Where is the soreness?</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {SORENESS_AREAS.map((area) => {
+                      const isSelected = sorenessAreas.includes(area);
+                      return (
+                        <Badge
+                          key={area}
+                          variant={isSelected ? "default" : "outline"}
+                          className={`cursor-pointer text-xs transition-colors ${isSelected ? "" : "hover:bg-secondary"}`}
+                          onClick={() =>
+                            setSorenessAreas((prev) =>
+                              isSelected ? prev.filter((a) => a !== area) : [...prev, area]
+                            )
+                          }
+                        >
+                          {area}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Stretching suggestions based on selected soreness areas */}
+                {sorenessAreas.length > 0 && (
+                  <Card className="border-amber-500/20 bg-amber-500/5">
+                    <CardHeader className="pb-2 pt-3 px-4">
+                      <CardTitle className="text-sm font-['Space_Grotesk']">
+                        💪 Suggested Stretches & Recovery
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="px-4 pb-4 space-y-3">
+                      {sorenessAreas.map((area) => {
+                        const stretches = STRETCHING_SUGGESTIONS[area];
+                        if (!stretches) return null;
+                        return (
+                          <div key={area}>
+                            <p className="text-xs font-semibold text-foreground mb-1.5">{area}</p>
+                            <div className="space-y-1.5">
+                              {stretches.map((s, idx) => (
+                                <div key={idx} className="rounded-md border bg-background/50 px-3 py-2">
+                                  <p className="text-sm font-medium">{s.name}</p>
+                                  <p className="text-xs text-muted-foreground">{s.description}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </div>
