@@ -472,34 +472,6 @@ const CoachAthletes = () => {
                     </CardContent>
                   </Card>
 
-                  {/* Position-based Suggestions */}
-                  {selectedAthlete.position && POSITION_SUGGESTIONS[selectedAthlete.position as Position] && (
-                    <Card>
-                      <CardHeader className="py-3 px-4">
-                        <CardTitle className="text-sm flex items-center gap-2">
-                          <Sparkles className="h-3.5 w-3.5 text-primary" />
-                          Suggested Workouts for {selectedAthlete.position}
-                        </CardTitle>
-                        <CardDescription className="text-xs">Position-specific drills to assign as at-home workouts</CardDescription>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4 space-y-3">
-                        {POSITION_SUGGESTIONS[selectedAthlete.position as Position].map((suggestion, idx) => (
-                          <div key={idx} className="rounded-lg border bg-secondary/30 p-3">
-                            <p className="text-sm font-medium">{suggestion.title}</p>
-                            <ul className="mt-1.5 space-y-1">
-                              {suggestion.drills.map((drill, dIdx) => (
-                                <li key={dIdx} className="text-xs text-muted-foreground flex items-center gap-2">
-                                  <span className="h-1 w-1 rounded-full bg-primary shrink-0" />
-                                  {drill}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-
                   {/* Goals */}
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">Goals</h3>
@@ -598,6 +570,34 @@ const CoachAthletes = () => {
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => setShowAssignProgram(false)}>Cancel</Button>
                         </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Position-based Suggestions */}
+                  {selectedAthlete.position && POSITION_SUGGESTIONS[selectedAthlete.position as Position] && (
+                    <Card>
+                      <CardHeader className="py-3 px-4">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          Suggested Workouts for {selectedAthlete.position}
+                        </CardTitle>
+                        <CardDescription className="text-xs">Position-specific drills to assign as at-home workouts</CardDescription>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 space-y-3">
+                        {POSITION_SUGGESTIONS[selectedAthlete.position as Position].map((suggestion, idx) => (
+                          <div key={idx} className="rounded-lg border bg-secondary/30 p-3">
+                            <p className="text-sm font-medium">{suggestion.title}</p>
+                            <ul className="mt-1.5 space-y-1">
+                              {suggestion.drills.map((drill, dIdx) => (
+                                <li key={dIdx} className="text-xs text-muted-foreground flex items-center gap-2">
+                                  <span className="h-1 w-1 rounded-full bg-primary shrink-0" />
+                                  {drill}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
                       </CardContent>
                     </Card>
                   )}
