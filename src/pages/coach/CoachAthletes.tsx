@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, RefreshCw, Link2, Copy, Film } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, RefreshCw, Link2, Copy, Film, Activity } from "lucide-react";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
 import AthleteVideoSubmissions from "@/components/AthleteVideoSubmissions";
@@ -22,6 +22,42 @@ import { useToast } from "@/hooks/use-toast";
 const POSITIONS = ["Pitcher", "Catcher", "Infielder", "Outfielder", "Hitter"] as const;
 type Position = (typeof POSITIONS)[number];
 const HANDS = ["Right", "Left", "Switch"] as const;
+
+// Position-specific metrics
+const POSITION_METRICS: Record<Position, { type: string; label: string; unit: string; category: string }[]> = {
+  Pitcher: [
+    { type: "fastball_velocity", label: "Fastball Velocity", unit: "mph", category: "velocity" },
+    { type: "changeup_velocity", label: "Changeup Velocity", unit: "mph", category: "velocity" },
+    { type: "spin_rate", label: "Spin Rate", unit: "rpm", category: "mechanics" },
+    { type: "strike_percentage", label: "Strike %", unit: "%", category: "accuracy" },
+    { type: "whip", label: "WHIP", unit: "", category: "performance" },
+  ],
+  Catcher: [
+    { type: "pop_time", label: "Pop Time", unit: "sec", category: "speed" },
+    { type: "blocking_percentage", label: "Blocking %", unit: "%", category: "defense" },
+    { type: "framing_rate", label: "Framing Rate", unit: "%", category: "defense" },
+    { type: "throw_velocity", label: "Throw Velocity", unit: "mph", category: "velocity" },
+  ],
+  Infielder: [
+    { type: "fielding_percentage", label: "Fielding %", unit: "%", category: "defense" },
+    { type: "throw_velocity", label: "Throw Velocity", unit: "mph", category: "velocity" },
+    { type: "reaction_time", label: "Reaction Time", unit: "sec", category: "speed" },
+    { type: "double_play_time", label: "Double Play Turn", unit: "sec", category: "speed" },
+  ],
+  Outfielder: [
+    { type: "sprint_speed", label: "Sprint Speed", unit: "mph", category: "speed" },
+    { type: "throw_velocity", label: "Throw Velocity", unit: "mph", category: "velocity" },
+    { type: "route_efficiency", label: "Route Efficiency", unit: "%", category: "defense" },
+    { type: "fly_ball_catch_rate", label: "Fly Ball Catch %", unit: "%", category: "defense" },
+  ],
+  Hitter: [
+    { type: "exit_velocity", label: "Exit Velocity", unit: "mph", category: "power" },
+    { type: "launch_angle", label: "Launch Angle", unit: "°", category: "mechanics" },
+    { type: "bat_speed", label: "Bat Speed", unit: "mph", category: "power" },
+    { type: "hard_hit_rate", label: "Hard Hit %", unit: "%", category: "performance" },
+    { type: "batting_average", label: "Batting Avg", unit: "", category: "performance" },
+  ],
+};
 
 // Position-based workout suggestions for baseball
 const POSITION_SUGGESTIONS: Record<Position, { title: string; drills: string[] }[]> = {
@@ -94,6 +130,10 @@ const CoachAthletes = () => {
   // Program assignment
   const [selectedProgramId, setSelectedProgramId] = useState("");
 
+  // Metric recording
+  const [metricValues, setMetricValues] = useState<Record<string, string>>({});
+  const [metricNotes, setMetricNotes] = useState("");
+
   // Fetch athletes linked to this coach
   const { data: athletes = [], isLoading } = useQuery({
     queryKey: ["coach-athletes", user?.id],
@@ -147,6 +187,23 @@ const CoachAthletes = () => {
   });
 
   const selectedAthlete = selectedAthleteId ? athletes.find((a) => a.athlete_user_id === selectedAthleteId) ?? null : null;
+
+  // Fetch metrics for selected athlete
+  const { data: athleteMetrics = [] } = useQuery({
+    queryKey: ["athlete-metrics", selectedAthleteId],
+    queryFn: async () => {
+      if (!selectedAthleteId) return [];
+      const { data, error } = await supabase
+        .from("athlete_metrics")
+        .select("*")
+        .eq("athlete_id", selectedAthleteId)
+        .order("recorded_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedAthleteId,
+  });
 
   // Mutations
   const addNoteMutation = useMutation({
@@ -209,6 +266,30 @@ const CoachAthletes = () => {
       queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
       toast({ title: "Workout removed" });
     },
+  });
+
+  const recordMetricsMutation = useMutation({
+    mutationFn: async ({ athleteId, sportId, metrics }: { athleteId: string; sportId: string; metrics: { type: string; value: number; unit: string; category: string }[] }) => {
+      const rows = metrics.map((m) => ({
+        athlete_id: athleteId,
+        sport_id: sportId,
+        metric_type: m.type,
+        metric_category: m.category,
+        value: m.value,
+        unit: m.unit || null,
+        notes: metricNotes || null,
+        recorded_by: user!.id,
+      }));
+      const { error } = await supabase.from("athlete_metrics").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["athlete-metrics"] });
+      setMetricValues({});
+      setMetricNotes("");
+      toast({ title: "Metrics recorded!" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
   const updateAthleteLink = useMutation({
@@ -632,6 +713,9 @@ const CoachAthletes = () => {
                   <TabsTrigger value="notes" className="flex-1 gap-2">
                     <StickyNote className="h-3.5 w-3.5" /> Notes
                   </TabsTrigger>
+                  <TabsTrigger value="metrics" className="flex-1 gap-2">
+                    <Activity className="h-3.5 w-3.5" /> Metrics
+                  </TabsTrigger>
                   <TabsTrigger value="videos" className="flex-1 gap-2">
                     <Film className="h-3.5 w-3.5" /> Videos
                   </TabsTrigger>
@@ -892,6 +976,111 @@ const CoachAthletes = () => {
                       ))
                     )}
                   </div>
+                </TabsContent>
+
+                {/* Metrics Tab */}
+                <TabsContent value="metrics" className="space-y-4 mt-4">
+                  {selectedAthlete.position && POSITION_METRICS[selectedAthlete.position as Position] ? (
+                    <>
+                      <Card>
+                        <CardHeader className="py-3 px-4">
+                          <CardTitle className="text-sm font-['Space_Grotesk']">
+                            Record {selectedAthlete.position} Metrics
+                          </CardTitle>
+                          <CardDescription className="text-xs">
+                            Track position-specific performance data
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-4 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            {POSITION_METRICS[selectedAthlete.position as Position].map((metric) => (
+                              <div key={metric.type} className="space-y-1">
+                                <Label className="text-xs text-muted-foreground">
+                                  {metric.label} {metric.unit && <span className="text-[10px]">({metric.unit})</span>}
+                                </Label>
+                                <Input
+                                  type="number"
+                                  step="any"
+                                  placeholder="—"
+                                  value={metricValues[metric.type] || ""}
+                                  onChange={(e) => setMetricValues((prev) => ({ ...prev, [metric.type]: e.target.value }))}
+                                  className="h-8 text-sm"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground">Notes (optional)</Label>
+                            <Input
+                              placeholder="e.g. After warmup, using Rapsodo"
+                              value={metricNotes}
+                              onChange={(e) => setMetricNotes(e.target.value)}
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            disabled={!Object.values(metricValues).some((v) => v && parseFloat(v) > 0) || recordMetricsMutation.isPending}
+                            onClick={() => {
+                              const metrics = POSITION_METRICS[selectedAthlete.position as Position]
+                                .filter((m) => metricValues[m.type] && parseFloat(metricValues[m.type]) > 0)
+                                .map((m) => ({ type: m.type, value: parseFloat(metricValues[m.type]), unit: m.unit, category: m.category }));
+                              recordMetricsMutation.mutate({
+                                athleteId: selectedAthlete.athlete_user_id,
+                                sportId: selectedAthlete.sport_id,
+                                metrics,
+                              });
+                            }}
+                          >
+                            {recordMetricsMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                            Record Metrics
+                          </Button>
+                        </CardContent>
+                      </Card>
+
+                      {/* Recent metrics history */}
+                      <div>
+                        <h3 className="text-sm font-semibold mb-3">Recent Measurements</h3>
+                        {athleteMetrics.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-6">No metrics recorded yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {POSITION_METRICS[selectedAthlete.position as Position].map((metricDef) => {
+                              const entries = athleteMetrics.filter((m) => m.metric_type === metricDef.type);
+                              if (entries.length === 0) return null;
+                              const latest = entries[0];
+                              const prev = entries[1];
+                              const trend = prev ? latest.value - prev.value : null;
+                              return (
+                                <div key={metricDef.type} className="rounded-lg border p-3 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-medium">{metricDef.label}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(latest.recorded_at).toLocaleDateString()} · {entries.length} readings
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-lg font-bold font-['Space_Grotesk']">
+                                      {latest.value}{metricDef.unit && <span className="text-xs text-muted-foreground ml-1">{metricDef.unit}</span>}
+                                    </p>
+                                    {trend !== null && (
+                                      <p className={`text-xs ${trend > 0 ? "text-emerald-400" : trend < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                                        {trend > 0 ? "↑" : trend < 0 ? "↓" : "→"} {Math.abs(trend).toFixed(1)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      Set a position on the Overview tab to see position-specific metrics.
+                    </p>
+                  )}
                 </TabsContent>
 
                 {/* Videos Tab */}
