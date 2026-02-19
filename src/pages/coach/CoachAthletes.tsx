@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, RefreshCw, Link2, Copy, Film } from "lucide-react";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
+import AthleteVideoSubmissions from "@/components/AthleteVideoSubmissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -894,7 +895,11 @@ const CoachAthletes = () => {
                 </TabsContent>
 
                 {/* Videos Tab */}
-                <TabsContent value="videos" className="mt-4">
+                <TabsContent value="videos" className="space-y-4 mt-4">
+                  <AthleteVideoSubmissions
+                    athleteId={selectedAthlete.athlete_user_id}
+                    coachId={user?.id}
+                  />
                   <ImprovementVideos
                     athleteId={selectedAthlete.athlete_user_id}
                     coachId={user?.id}

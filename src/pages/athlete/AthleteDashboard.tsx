@@ -10,6 +10,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Target, Dumbbell, TrendingUp, CheckCircle2, Clock, Loader2, Video, Mail, UserPlus, XCircle } from "lucide-react";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
+import AthleteVideoSubmissions from "@/components/AthleteVideoSubmissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -435,7 +436,8 @@ const AthleteDashboard = () => {
 
       {/* Improvement Videos from Coach */}
       {user && (
-        <div className="mt-8">
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <AthleteVideoSubmissions athleteId={user.id} canUpload />
           <ImprovementVideos athleteId={user.id} readOnly />
         </div>
       )}
