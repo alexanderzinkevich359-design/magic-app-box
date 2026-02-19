@@ -298,11 +298,15 @@ const CoachAthletes = () => {
       const coachName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "Your coach";
       const signupUrl = getInviteLink(athleteEmail);
 
-      await supabase.functions.invoke("send-invite-email", {
+      const { error } = await supabase.functions.invoke("send-invite-email", {
         body: { athleteEmail, athleteName, coachName, signupUrl },
       });
+      if (error) {
+        console.warn("Invite email could not be sent (domain not verified yet):", error);
+      }
     } catch (err) {
-      console.error("Failed to send invite email:", err);
+      // Silently fail — invite was already created, email is optional
+      console.warn("Invite email skipped:", err);
     }
   };
 
