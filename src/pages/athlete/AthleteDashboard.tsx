@@ -125,13 +125,15 @@ const AthleteDashboard = () => {
     queryKey: ["athlete-team-invites", user?.id],
     queryFn: async () => {
       if (!user) return [];
-      // Get invites matching the user's email
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser?.email) return [];
+      // Get user email from session (avoids querying auth.users)
+      const { data: { session } } = await supabase.auth.getSession();
+      const email = session?.user?.email;
+      if (!email) return [];
+      
       const { data, error } = await supabase
         .from("team_invites")
         .select("*")
-        .eq("athlete_email", authUser.email)
+        .eq("athlete_email", email.toLowerCase())
         .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) throw error;
