@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, RefreshCw, Link2, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -314,6 +314,50 @@ const CoachAthletes = () => {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const cancelInviteMutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      const { error } = await supabase.from("team_invites").delete().eq("id", inviteId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-pending-invites"] });
+      toast({ title: "Invite cancelled" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const resendInviteMutation = useMutation({
+    mutationFn: async (invite: any) => {
+      // Delete old invite, create a fresh one
+      await supabase.from("team_invites").delete().eq("id", invite.id);
+      const { error } = await supabase.from("team_invites").insert({
+        coach_id: user!.id,
+        athlete_email: invite.athlete_email,
+        athlete_name: invite.athlete_name,
+        position: invite.position,
+        throw_hand: invite.throw_hand,
+        bat_hand: invite.bat_hand,
+        sport_id: invite.sport_id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-pending-invites"] });
+      toast({ title: "Invite resent!" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const getInviteLink = (email: string) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/signup?email=${encodeURIComponent(email)}`;
+  };
+
+  const copyInviteLink = (email: string) => {
+    navigator.clipboard.writeText(getInviteLink(email));
+    toast({ title: "Link copied!", description: "Share this signup link with the athlete." });
+  };
+
   const resetAddForm = () => {
     setNewFirstName(""); setNewLastName(""); setNewEmail(""); setNewPosition("");
     setNewThrowHand(""); setNewBatHand(""); setShowAddDialog(false);
@@ -399,19 +443,50 @@ const CoachAthletes = () => {
           <CardContent className="p-0">
             <div className="divide-y">
               {pendingInvites.map((invite: any) => (
-                <div key={invite.id} className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-accent/30 flex items-center justify-center">
+                <div key={invite.id} className="flex items-center justify-between p-4 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-9 w-9 rounded-full bg-accent/30 flex items-center justify-center shrink-0">
                       <Mail className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-medium text-sm">{invite.athlete_name}</p>
-                      <p className="text-xs text-muted-foreground">{invite.athlete_email}</p>
+                      <p className="text-xs text-muted-foreground truncate">{invite.athlete_email}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Sent {new Date(invite.created_at).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">{invite.position}</Badge>
-                    <Badge variant="secondary" className="text-xs">Pending</Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge variant="outline" className="text-xs hidden sm:inline-flex">{invite.position}</Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      title="Copy invite link"
+                      onClick={() => copyInviteLink(invite.athlete_email)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      title="Resend invite"
+                      disabled={resendInviteMutation.isPending}
+                      onClick={() => resendInviteMutation.mutate(invite)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      title="Cancel invite"
+                      disabled={cancelInviteMutation.isPending}
+                      onClick={() => cancelInviteMutation.mutate(invite.id)}
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               ))}
