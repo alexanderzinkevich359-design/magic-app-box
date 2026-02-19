@@ -11,7 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, RefreshCw, Link2, Copy } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, RefreshCw, Link2, Copy, Film } from "lucide-react";
+import AvatarUpload from "@/components/AvatarUpload";
+import ImprovementVideos from "@/components/ImprovementVideos";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -427,25 +429,30 @@ const CoachAthletes = () => {
                   onClick={() => setSelectedAthleteId(athlete.athlete_user_id)}
                   className="w-full flex items-center justify-between p-4 text-left transition-colors hover:bg-secondary/50"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                      {athlete.profile ? `${athlete.profile.first_name[0]}${athlete.profile.last_name[0]}` : "??"}
-                    </div>
-                    <div>
-                      <p className="font-medium">
-                        {athlete.profile ? `${athlete.profile.first_name} ${athlete.profile.last_name}` : "Unknown"}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-sm text-muted-foreground">{athlete.position || "No position"}</span>
-                        {athlete.throw_hand && (
-                          <Badge variant="outline" className="text-[10px]">Throws: {athlete.throw_hand}</Badge>
-                        )}
-                        {athlete.bat_hand && (
-                          <Badge variant="outline" className="text-[10px]">Bats: {athlete.bat_hand}</Badge>
-                        )}
+                    <div className="flex items-center gap-4">
+                      <AvatarUpload
+                        userId={athlete.athlete_user_id}
+                        currentUrl={athlete.profile?.avatar_url || null}
+                        initials={athlete.profile ? `${athlete.profile.first_name[0]}${athlete.profile.last_name[0]}` : "??"}
+                        onUploaded={() => queryClient.invalidateQueries({ queryKey: ["coach-athletes"] })}
+                        size="sm"
+                        canEdit={false}
+                      />
+                      <div>
+                        <p className="font-medium">
+                          {athlete.profile ? `${athlete.profile.first_name} ${athlete.profile.last_name}` : "Unknown"}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-sm text-muted-foreground">{athlete.position || "No position"}</span>
+                          {athlete.throw_hand && (
+                            <Badge variant="outline" className="text-[10px]">Throws: {athlete.throw_hand}</Badge>
+                          )}
+                          {athlete.bat_hand && (
+                            <Badge variant="outline" className="text-[10px]">Bats: {athlete.bat_hand}</Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right hidden sm:block">
                       <p className="text-xs text-muted-foreground">
@@ -592,14 +599,25 @@ const CoachAthletes = () => {
           {selectedAthlete && (
             <>
               <DialogHeader>
-                <DialogTitle className="font-['Space_Grotesk'] text-xl">
-                  {selectedAthlete.profile ? `${selectedAthlete.profile.first_name} ${selectedAthlete.profile.last_name}` : "Athlete"}
-                </DialogTitle>
-                <DialogDescription>
-                  {selectedAthlete.position || "Baseball"} 
-                  {selectedAthlete.throw_hand && ` · Throws: ${selectedAthlete.throw_hand}`}
-                  {selectedAthlete.bat_hand && ` · Bats: ${selectedAthlete.bat_hand}`}
-                </DialogDescription>
+                <div className="flex items-center gap-4">
+                  <AvatarUpload
+                    userId={selectedAthlete.athlete_user_id}
+                    currentUrl={selectedAthlete.profile?.avatar_url || null}
+                    initials={selectedAthlete.profile ? `${selectedAthlete.profile.first_name[0]}${selectedAthlete.profile.last_name[0]}` : "??"}
+                    onUploaded={() => queryClient.invalidateQueries({ queryKey: ["coach-athletes"] })}
+                    size="lg"
+                  />
+                  <div>
+                    <DialogTitle className="font-['Space_Grotesk'] text-xl">
+                      {selectedAthlete.profile ? `${selectedAthlete.profile.first_name} ${selectedAthlete.profile.last_name}` : "Athlete"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {selectedAthlete.position || "Baseball"} 
+                      {selectedAthlete.throw_hand && ` · Throws: ${selectedAthlete.throw_hand}`}
+                      {selectedAthlete.bat_hand && ` · Bats: ${selectedAthlete.bat_hand}`}
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
 
               <Tabs defaultValue="overview" className="mt-2">
@@ -612,6 +630,9 @@ const CoachAthletes = () => {
                   </TabsTrigger>
                   <TabsTrigger value="notes" className="flex-1 gap-2">
                     <StickyNote className="h-3.5 w-3.5" /> Notes
+                  </TabsTrigger>
+                  <TabsTrigger value="videos" className="flex-1 gap-2">
+                    <Film className="h-3.5 w-3.5" /> Videos
                   </TabsTrigger>
                 </TabsList>
 
@@ -870,6 +891,14 @@ const CoachAthletes = () => {
                       ))
                     )}
                   </div>
+                </TabsContent>
+
+                {/* Videos Tab */}
+                <TabsContent value="videos" className="mt-4">
+                  <ImprovementVideos
+                    athleteId={selectedAthlete.athlete_user_id}
+                    coachId={user?.id}
+                  />
                 </TabsContent>
               </Tabs>
             </>
