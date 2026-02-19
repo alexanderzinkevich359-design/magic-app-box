@@ -15,6 +15,7 @@ import CoachPrograms from "./pages/coach/CoachPrograms";
 import ProgramEditor from "./pages/coach/ProgramEditor";
 import CoachAthletes from "./pages/coach/CoachAthletes";
 import CoachSchedule from "./pages/coach/CoachSchedule";
+import SessionLogger from "./pages/coach/SessionLogger";
 import ParentDashboard from "./pages/parent/ParentDashboard";
 import AthleteDashboard from "./pages/athlete/AthleteDashboard";
 import NotFound from "./pages/NotFound";
@@ -48,6 +49,9 @@ const App = () => (
             } />
             <Route path="/coach/schedule" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachSchedule /></ProtectedRoute>
+            } />
+            <Route path="/coach/log-session" element={
+              <ProtectedRoute allowedRoles={["coach"]}><SessionLogger /></ProtectedRoute>
             } />
             <Route path="/coach/*" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachDashboard /></ProtectedRoute>

@@ -5,7 +5,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { useAuth } from "@/hooks/useAuth";
 import {
   Menu, LogOut, Home, Users, Calendar, CreditCard,
-  BarChart3, Dumbbell, Target, Video, Activity
+  BarChart3, Dumbbell, Target, Video, Activity, ClipboardList
 } from "lucide-react";
 
 type NavItem = { label: string; path: string; icon: ReactNode };
@@ -15,8 +15,8 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: "Dashboard", path: "/coach", icon: <Home className="h-4 w-4" /> },
     { label: "Programs", path: "/coach/programs", icon: <Dumbbell className="h-4 w-4" /> },
     { label: "Athletes", path: "/coach/athletes", icon: <Users className="h-4 w-4" /> },
+    { label: "Log Session", path: "/coach/log-session", icon: <ClipboardList className="h-4 w-4" /> },
     { label: "Schedule", path: "/coach/schedule", icon: <Calendar className="h-4 w-4" /> },
-    { label: "Analytics", path: "/coach/analytics", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   parent: [
     { label: "Dashboard", path: "/parent", icon: <Home className="h-4 w-4" /> },
