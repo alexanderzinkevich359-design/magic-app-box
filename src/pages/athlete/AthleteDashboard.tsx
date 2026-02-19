@@ -238,14 +238,6 @@ const AthleteDashboard = () => {
                 <div className="flex items-center gap-2">
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={() => respondToInvite.mutate({ inviteId: invite.id, accept: false })}
-                    disabled={respondToInvite.isPending}
-                  >
-                    <XCircle className="h-4 w-4 mr-1" /> Decline
-                  </Button>
-                  <Button
-                    size="sm"
                     onClick={() => respondToInvite.mutate({ inviteId: invite.id, accept: true })}
                     disabled={respondToInvite.isPending}
                   >
