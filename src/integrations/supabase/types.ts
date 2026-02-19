@@ -135,12 +135,49 @@ export type Database = {
           },
         ]
       }
+      coach_alerts: {
+        Row: {
+          alert_type: string
+          athlete_id: string
+          coach_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          severity: string
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          athlete_id: string
+          coach_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          severity?: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          athlete_id?: string
+          coach_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          severity?: string
+          title?: string
+        }
+        Relationships: []
+      }
       coach_athlete_links: {
         Row: {
           athlete_user_id: string
           coach_user_id: string
           created_at: string
           id: string
+          position: string | null
           sport_id: string | null
         }
         Insert: {
@@ -148,6 +185,7 @@ export type Database = {
           coach_user_id: string
           created_at?: string
           id?: string
+          position?: string | null
           sport_id?: string | null
         }
         Update: {
@@ -155,6 +193,7 @@ export type Database = {
           coach_user_id?: string
           created_at?: string
           id?: string
+          position?: string | null
           sport_id?: string | null
         }
         Relationships: [
@@ -173,21 +212,27 @@ export type Database = {
           coach_id: string
           created_at: string
           id: string
+          is_private: boolean
           note: string
+          tag: string | null
         }
         Insert: {
           athlete_id: string
           coach_id: string
           created_at?: string
           id?: string
+          is_private?: boolean
           note: string
+          tag?: string | null
         }
         Update: {
           athlete_id?: string
           coach_id?: string
           created_at?: string
           id?: string
+          is_private?: boolean
           note?: string
+          tag?: string | null
         }
         Relationships: []
       }
@@ -419,6 +464,74 @@ export type Database = {
           slug?: string
         }
         Relationships: []
+      }
+      training_sessions: {
+        Row: {
+          athlete_id: string
+          coach_id: string
+          created_at: string
+          drill_reps: number | null
+          duration_min: number | null
+          id: string
+          injury_note: string | null
+          intensity: string | null
+          notes: string | null
+          pitch_count: number | null
+          session_date: string
+          session_type: string
+          soreness_flag: boolean
+          sport_id: string
+          status: string
+          throw_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          athlete_id: string
+          coach_id: string
+          created_at?: string
+          drill_reps?: number | null
+          duration_min?: number | null
+          id?: string
+          injury_note?: string | null
+          intensity?: string | null
+          notes?: string | null
+          pitch_count?: number | null
+          session_date: string
+          session_type?: string
+          soreness_flag?: boolean
+          sport_id: string
+          status?: string
+          throw_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          athlete_id?: string
+          coach_id?: string
+          created_at?: string
+          drill_reps?: number | null
+          duration_min?: number | null
+          id?: string
+          injury_note?: string | null
+          intensity?: string | null
+          notes?: string | null
+          pitch_count?: number | null
+          session_date?: string
+          session_type?: string
+          soreness_flag?: boolean
+          sport_id?: string
+          status?: string
+          throw_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_sessions_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
