@@ -287,15 +287,37 @@ const CoachAthletes = () => {
     enabled: !!user,
   });
 
+  // Helper to send invite email (fire-and-forget, don't block invite flow)
+  const sendInviteEmail = async (athleteEmail: string, athleteName: string) => {
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("user_id", user!.id)
+        .single();
+      const coachName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "Your coach";
+      const signupUrl = getInviteLink(athleteEmail);
+
+      await supabase.functions.invoke("send-invite-email", {
+        body: { athleteEmail, athleteName, coachName, signupUrl },
+      });
+    } catch (err) {
+      console.error("Failed to send invite email:", err);
+    }
+  };
+
   const sendInviteMutation = useMutation({
     mutationFn: async () => {
       if (!user || !newEmail || !newPosition) throw new Error("Missing fields");
       const { data: sportData } = await supabase.from("sports").select("id").eq("slug", "baseball").single();
 
+      const athleteName = `${newFirstName} ${newLastName}`.trim();
+      const athleteEmail = newEmail.toLowerCase().trim();
+
       const { error } = await supabase.from("team_invites").insert({
         coach_id: user.id,
-        athlete_email: newEmail.toLowerCase().trim(),
-        athlete_name: `${newFirstName} ${newLastName}`.trim(),
+        athlete_email: athleteEmail,
+        athlete_name: athleteName,
         position: newPosition,
         throw_hand: newThrowHand || null,
         bat_hand: newBatHand || null,
@@ -305,11 +327,13 @@ const CoachAthletes = () => {
         if (error.code === "23505") throw new Error("An invite has already been sent to this email.");
         throw error;
       }
+
+      sendInviteEmail(athleteEmail, athleteName);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coach-pending-invites"] });
       resetAddForm();
-      toast({ title: "Invite sent!", description: "The athlete will see the invite when they log in." });
+      toast({ title: "Invite sent!", description: "The athlete will receive an email notification." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -328,7 +352,6 @@ const CoachAthletes = () => {
 
   const resendInviteMutation = useMutation({
     mutationFn: async (invite: any) => {
-      // Delete old invite, create a fresh one
       await supabase.from("team_invites").delete().eq("id", invite.id);
       const { error } = await supabase.from("team_invites").insert({
         coach_id: user!.id,
@@ -340,10 +363,12 @@ const CoachAthletes = () => {
         sport_id: invite.sport_id,
       });
       if (error) throw error;
+
+      sendInviteEmail(invite.athlete_email, invite.athlete_name);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coach-pending-invites"] });
-      toast({ title: "Invite resent!" });
+      toast({ title: "Invite resent!", description: "A new email has been sent to the athlete." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
