@@ -4,9 +4,10 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Target, Dumbbell, TrendingUp, CheckCircle2, Clock, Loader2, Video } from "lucide-react";
+import { Target, Dumbbell, TrendingUp, CheckCircle2, Clock, Loader2, Video, Mail, UserPlus, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -119,6 +120,74 @@ const AthleteDashboard = () => {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // Fetch pending team invites for this athlete
+  const { data: teamInvites = [] } = useQuery({
+    queryKey: ["athlete-team-invites", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      // Get invites matching the user's email
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser?.email) return [];
+      const { data, error } = await supabase
+        .from("team_invites")
+        .select("*")
+        .eq("athlete_email", authUser.email)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      // Fetch coach names for display
+      if (!data?.length) return [];
+      const coachIds = [...new Set(data.map((i: any) => i.coach_id))];
+      const { data: coachProfiles } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", coachIds);
+
+      return data.map((invite: any) => {
+        const coach = coachProfiles?.find((p: any) => p.user_id === invite.coach_id);
+        return { ...invite, coach_name: coach ? `${coach.first_name} ${coach.last_name}`.trim() : "A coach" };
+      });
+    },
+    enabled: !!user,
+  });
+
+  const respondToInvite = useMutation({
+    mutationFn: async ({ inviteId, accept }: { inviteId: string; accept: boolean }) => {
+      // Get the invite details first
+      const invite = teamInvites.find((i: any) => i.id === inviteId);
+      if (!invite) throw new Error("Invite not found");
+
+      // Update invite status
+      const { error: updateErr } = await supabase
+        .from("team_invites")
+        .update({ status: accept ? "accepted" : "declined", responded_at: new Date().toISOString() })
+        .eq("id", inviteId);
+      if (updateErr) throw updateErr;
+
+      // If accepted, create the coach-athlete link
+      if (accept) {
+        const { error: linkErr } = await supabase
+          .from("coach_athlete_links")
+          .insert({
+            coach_user_id: invite.coach_id,
+            athlete_user_id: user!.id,
+            sport_id: invite.sport_id,
+            position: invite.position,
+            throw_hand: invite.throw_hand,
+            bat_hand: invite.bat_hand,
+          });
+        if (linkErr) throw linkErr;
+      }
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["athlete-team-invites"] });
+      queryClient.invalidateQueries({ queryKey: ["athlete-programs"] });
+      toast.success(vars.accept ? "You've joined the team!" : "Invite declined");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   // Compute stats
   const activeGoals = goals.filter((g) => !g.completed_at).length;
   const totalDrills = assignedPrograms.reduce(
@@ -146,6 +215,48 @@ const AthleteDashboard = () => {
         <h1 className="text-3xl font-bold font-['Space_Grotesk']">My Dashboard 👋</h1>
         <p className="text-muted-foreground mt-1">Your performance overview and at-home workouts</p>
       </div>
+
+      {/* Team Invites */}
+      {teamInvites.length > 0 && (
+        <div className="space-y-3 mb-8">
+          {teamInvites.map((invite: any) => (
+            <Card key={invite.id} className="border-primary/30 bg-primary/5">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Mail className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">
+                      {invite.coach_name} invited you to join their team
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Position: {invite.position || "Not specified"}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => respondToInvite.mutate({ inviteId: invite.id, accept: false })}
+                    disabled={respondToInvite.isPending}
+                  >
+                    <XCircle className="h-4 w-4 mr-1" /> Decline
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => respondToInvite.mutate({ inviteId: invite.id, accept: true })}
+                    disabled={respondToInvite.isPending}
+                  >
+                    <UserPlus className="h-4 w-4 mr-1" /> Accept
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-3 mb-8">
