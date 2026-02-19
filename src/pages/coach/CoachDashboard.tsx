@@ -6,101 +6,139 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Calendar, TrendingUp } from "lucide-react";
-
-type CoachNote = { id: string; text: string; date: string; private: boolean };
-type AthleteGoal = { id: string; title: string; target: string; progress: number; deadline: string };
-type Athlete = {
-  id: string;
-  name: string;
-  age: number;
-  sport: string;
-  skillRating: number;
-  notes: CoachNote[];
-  goals: AthleteGoal[];
-};
-
-const initialAthletes: Athlete[] = [
-  {
-    id: "1", name: "Marcus Johnson", age: 15, sport: "Basketball", skillRating: 72,
-    notes: [
-      { id: "n1", text: "Great footwork improvement this week. Needs to work on left-hand dribbling.", date: "2026-02-10", private: true },
-      { id: "n2", text: "Shows strong leadership qualities during drills.", date: "2026-02-08", private: true },
-    ],
-    goals: [
-      { id: "g1", title: "Free throw accuracy", target: "80%", progress: 65, deadline: "2026-04-01" },
-      { id: "g2", title: "Vertical jump", target: "28 inches", progress: 78, deadline: "2026-05-15" },
-    ],
-  },
-  {
-    id: "2", name: "Sofia Martinez", age: 14, sport: "Soccer", skillRating: 81,
-    notes: [
-      { id: "n3", text: "Exceptional ball control. Ready for advanced drills.", date: "2026-02-11", private: true },
-    ],
-    goals: [
-      { id: "g3", title: "Sprint speed", target: "Sub 7s 50m", progress: 55, deadline: "2026-03-20" },
-    ],
-  },
-  {
-    id: "3", name: "Tyler Chen", age: 16, sport: "Swimming", skillRating: 68,
-    notes: [],
-    goals: [
-      { id: "g4", title: "100m freestyle", target: "Under 58s", progress: 42, deadline: "2026-06-01" },
-    ],
-  },
-];
+import { Users, Plus, StickyNote, Target, ChevronRight, Calendar, TrendingUp, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 const CoachDashboard = () => {
-  const [athletes, setAthletes] = useState<Athlete[]>(initialAthletes);
-  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [goalTitle, setGoalTitle] = useState("");
   const [goalTarget, setGoalTarget] = useState("");
   const [goalDeadline, setGoalDeadline] = useState("");
   const [showGoalForm, setShowGoalForm] = useState(false);
 
-  const addNote = () => {
-    if (!selectedAthlete || !noteText.trim()) return;
-    const newNote: CoachNote = {
-      id: `n${Date.now()}`, text: noteText.trim(),
-      date: new Date().toISOString().split("T")[0], private: true,
-    };
-    setAthletes((prev) =>
-      prev.map((a) => a.id === selectedAthlete.id ? { ...a, notes: [newNote, ...a.notes] } : a)
-    );
-    setSelectedAthlete((prev) => prev ? { ...prev, notes: [newNote, ...prev.notes] } : null);
-    setNoteText("");
-  };
+  // Fetch linked athletes with their profiles
+  const { data: athletes = [], isLoading: loadingAthletes } = useQuery({
+    queryKey: ["coach-athletes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data: links, error } = await supabase
+        .from("coach_athlete_links")
+        .select("athlete_user_id, sport_id")
+        .eq("coach_user_id", user.id);
+      if (error) throw error;
+      if (!links.length) return [];
 
-  const addGoal = () => {
-    if (!selectedAthlete || !goalTitle.trim() || !goalTarget.trim()) return;
-    const newGoal: AthleteGoal = {
-      id: `g${Date.now()}`, title: goalTitle.trim(),
-      target: goalTarget.trim(), progress: 0, deadline: goalDeadline || "TBD",
-    };
-    setAthletes((prev) =>
-      prev.map((a) => a.id === selectedAthlete.id ? { ...a, goals: [...a.goals, newGoal] } : a)
-    );
-    setSelectedAthlete((prev) => prev ? { ...prev, goals: [...prev.goals, newGoal] } : null);
-    setGoalTitle(""); setGoalTarget(""); setGoalDeadline(""); setShowGoalForm(false);
-  };
+      const athleteIds = links.map((l) => l.athlete_user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, date_of_birth")
+        .in("user_id", athleteIds);
 
-  const updateGoalProgress = (goalId: string, progress: number) => {
-    if (!selectedAthlete) return;
-    const clamped = Math.min(100, Math.max(0, progress));
-    setAthletes((prev) =>
-      prev.map((a) =>
-        a.id === selectedAthlete.id
-          ? { ...a, goals: a.goals.map((g) => g.id === goalId ? { ...g, progress: clamped } : g) }
-          : a
-      )
-    );
-    setSelectedAthlete((prev) =>
-      prev ? { ...prev, goals: prev.goals.map((g) => g.id === goalId ? { ...g, progress: clamped } : g) } : null
-    );
-  };
+      return (profiles || []).map((p) => ({
+        id: p.user_id,
+        name: `${p.first_name} ${p.last_name}`.trim() || "Unknown",
+        age: p.date_of_birth ? Math.floor((Date.now() - new Date(p.date_of_birth).getTime()) / 31557600000) : null,
+      }));
+    },
+    enabled: !!user,
+  });
+
+  // Fetch notes for all linked athletes
+  const { data: allNotes = [] } = useQuery({
+    queryKey: ["coach-notes", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from("coach_notes")
+        .select("*")
+        .eq("coach_id", user.id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Fetch goals for all linked athletes
+  const { data: allGoals = [] } = useQuery({
+    queryKey: ["coach-goals", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from("athlete_goals")
+        .select("*")
+        .eq("coach_id", user.id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const selectedAthlete = athletes.find((a) => a.id === selectedAthleteId) || null;
+  const selectedNotes = allNotes.filter((n) => n.athlete_id === selectedAthleteId);
+  const selectedGoals = allGoals.filter((g) => g.athlete_id === selectedAthleteId);
+
+  // Add note mutation
+  const addNoteMut = useMutation({
+    mutationFn: async () => {
+      if (!user || !selectedAthleteId || !noteText.trim()) return;
+      const { error } = await supabase.from("coach_notes").insert({
+        coach_id: user.id,
+        athlete_id: selectedAthleteId,
+        note: noteText.trim(),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setNoteText("");
+      queryClient.invalidateQueries({ queryKey: ["coach-notes"] });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Add goal mutation
+  const addGoalMut = useMutation({
+    mutationFn: async () => {
+      if (!user || !selectedAthleteId || !goalTitle.trim() || !goalTarget.trim()) return;
+      const { error } = await supabase.from("athlete_goals").insert({
+        coach_id: user.id,
+        athlete_id: selectedAthleteId,
+        title: goalTitle.trim(),
+        target: goalTarget.trim(),
+        deadline: goalDeadline || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setGoalTitle(""); setGoalTarget(""); setGoalDeadline(""); setShowGoalForm(false);
+      queryClient.invalidateQueries({ queryKey: ["coach-goals"] });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // Update goal progress mutation
+  const updateProgressMut = useMutation({
+    mutationFn: async ({ goalId, progress }: { goalId: string; progress: number }) => {
+      const clamped = Math.min(100, Math.max(0, progress));
+      const { error } = await supabase
+        .from("athlete_goals")
+        .update({ progress: clamped })
+        .eq("id", goalId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coach-goals"] }),
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const totalGoals = allGoals.length;
 
   return (
     <DashboardLayout role="coach">
@@ -113,9 +151,9 @@ const CoachDashboard = () => {
       <div className="grid gap-4 md:grid-cols-4 mb-8">
         {[
           { label: "Athletes", value: athletes.length, icon: Users },
-          { label: "Active Goals", value: athletes.reduce((s, a) => s + a.goals.length, 0), icon: Target },
-          { label: "Sessions This Week", value: 8, icon: Calendar },
-          { label: "Avg Skill Rating", value: Math.round(athletes.reduce((s, a) => s + a.skillRating, 0) / athletes.length), icon: TrendingUp },
+          { label: "Active Goals", value: totalGoals, icon: Target },
+          { label: "Total Notes", value: allNotes.length, icon: StickyNote },
+          { label: "Avg Progress", value: totalGoals ? Math.round(allGoals.reduce((s, g) => s + g.progress, 0) / totalGoals) + "%" : "—", icon: TrendingUp },
         ].map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-5 flex items-center gap-4">
@@ -135,40 +173,55 @@ const CoachDashboard = () => {
       <Card>
         <CardHeader>
           <CardTitle className="font-['Space_Grotesk']">Athlete Roster</CardTitle>
-          <CardDescription>Click an athlete to manage notes and goals</CardDescription>
+          <CardDescription>
+            {athletes.length > 0
+              ? "Click an athlete to manage notes and goals"
+              : "No athletes linked yet. Add athletes from the Athletes page."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            {athletes.map((athlete) => (
-              <button
-                key={athlete.id}
-                onClick={() => setSelectedAthlete(athlete)}
-                className="w-full flex items-center justify-between rounded-lg border p-4 text-left transition-colors hover:border-primary/40 hover:bg-secondary/50"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                    {athlete.name.split(" ").map((n) => n[0]).join("")}
-                  </div>
-                  <div>
-                    <p className="font-medium">{athlete.name}</p>
-                    <p className="text-sm text-muted-foreground">{athlete.sport} · Age {athlete.age}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-right hidden sm:block">
-                    <p className="text-sm font-medium">{athlete.skillRating}/100</p>
-                    <p className="text-xs text-muted-foreground">{athlete.notes.length} notes · {athlete.goals.length} goals</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </button>
-            ))}
-          </div>
+          {loadingAthletes ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {athletes.map((athlete) => {
+                const notes = allNotes.filter((n) => n.athlete_id === athlete.id);
+                const goals = allGoals.filter((g) => g.athlete_id === athlete.id);
+                return (
+                  <button
+                    key={athlete.id}
+                    onClick={() => setSelectedAthleteId(athlete.id)}
+                    className="w-full flex items-center justify-between rounded-lg border p-4 text-left transition-colors hover:border-primary/40 hover:bg-secondary/50"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
+                        {athlete.name.split(" ").map((n) => n[0]).join("")}
+                      </div>
+                      <div>
+                        <p className="font-medium">{athlete.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {athlete.age ? `Age ${athlete.age}` : "Age unknown"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-xs text-muted-foreground">{notes.length} notes · {goals.length} goals</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* Athlete detail dialog */}
-      <Dialog open={!!selectedAthlete} onOpenChange={(open) => !open && setSelectedAthlete(null)}>
+      <Dialog open={!!selectedAthlete} onOpenChange={(open) => !open && setSelectedAthleteId(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedAthlete && (
             <>
@@ -177,7 +230,7 @@ const CoachDashboard = () => {
                   {selectedAthlete.name}
                 </DialogTitle>
                 <DialogDescription>
-                  {selectedAthlete.sport} · Age {selectedAthlete.age} · Skill Rating: {selectedAthlete.skillRating}/100
+                  {selectedAthlete.age ? `Age ${selectedAthlete.age}` : "Age unknown"}
                 </DialogDescription>
               </DialogHeader>
 
@@ -196,23 +249,24 @@ const CoachDashboard = () => {
                   <div className="space-y-2">
                     <Label>Add Private Note</Label>
                     <Textarea
-                      placeholder="Write a note about this athlete's performance, areas to improve, etc..."
+                      placeholder="Write a note about this athlete's performance..."
                       value={noteText}
                       onChange={(e) => setNoteText(e.target.value)}
                       className="min-h-[80px]"
                     />
-                    <Button onClick={addNote} disabled={!noteText.trim()} size="sm">
-                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Note
+                    <Button onClick={() => addNoteMut.mutate()} disabled={!noteText.trim() || addNoteMut.isPending} size="sm">
+                      {addNoteMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+                      Add Note
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    {selectedAthlete.notes.length === 0 ? (
+                    {selectedNotes.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-6">No notes yet. Add your first note above.</p>
                     ) : (
-                      selectedAthlete.notes.map((note) => (
+                      selectedNotes.map((note) => (
                         <div key={note.id} className="rounded-lg border bg-secondary/30 p-4">
-                          <p className="text-sm">{note.text}</p>
-                          <p className="text-xs text-muted-foreground mt-2">{note.date} · Private</p>
+                          <p className="text-sm">{note.note}</p>
+                          <p className="text-xs text-muted-foreground mt-2">{new Date(note.created_at).toLocaleDateString()} · Private</p>
                         </div>
                       ))
                     )}
@@ -243,22 +297,25 @@ const CoachDashboard = () => {
                           <Input type="date" value={goalDeadline} onChange={(e) => setGoalDeadline(e.target.value)} />
                         </div>
                         <div className="flex gap-2">
-                          <Button onClick={addGoal} size="sm" disabled={!goalTitle.trim() || !goalTarget.trim()}>Save Goal</Button>
+                          <Button onClick={() => addGoalMut.mutate()} size="sm" disabled={!goalTitle.trim() || !goalTarget.trim() || addGoalMut.isPending}>
+                            {addGoalMut.isPending && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+                            Save Goal
+                          </Button>
                           <Button onClick={() => setShowGoalForm(false)} size="sm" variant="ghost">Cancel</Button>
                         </div>
                       </CardContent>
                     </Card>
                   )}
                   <div className="space-y-3">
-                    {selectedAthlete.goals.length === 0 ? (
+                    {selectedGoals.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-6">No goals set. Create one above.</p>
                     ) : (
-                      selectedAthlete.goals.map((goal) => (
+                      selectedGoals.map((goal) => (
                         <div key={goal.id} className="rounded-lg border p-4 space-y-3">
                           <div className="flex items-start justify-between">
                             <div>
                               <p className="font-medium text-sm">{goal.title}</p>
-                              <p className="text-xs text-muted-foreground">Target: {goal.target} · Deadline: {goal.deadline}</p>
+                              <p className="text-xs text-muted-foreground">Target: {goal.target} · Deadline: {goal.deadline || "None"}</p>
                             </div>
                             <span className="text-sm font-semibold text-primary">{goal.progress}%</span>
                           </div>
@@ -267,7 +324,7 @@ const CoachDashboard = () => {
                             <Input
                               type="number" min={0} max={100}
                               value={goal.progress}
-                              onChange={(e) => updateGoalProgress(goal.id, parseInt(e.target.value) || 0)}
+                              onChange={(e) => updateProgressMut.mutate({ goalId: goal.id, progress: parseInt(e.target.value) || 0 })}
                               className="w-20 h-8 text-xs"
                             />
                             <span className="text-xs text-muted-foreground">% complete</span>
