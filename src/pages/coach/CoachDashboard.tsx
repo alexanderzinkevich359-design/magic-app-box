@@ -12,7 +12,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Users, Loader2, AlertTriangle, TrendingUp, Calendar, Target,
-  StickyNote, Plus, ChevronRight, Activity, Heart, Clock
+  StickyNote, Plus, ChevronRight, Activity, Heart, Clock, Bell,
+  X, CheckCircle, Info, ShieldAlert
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,6 +63,8 @@ const CoachDashboard = () => {
   const [goalDeadline, setGoalDeadline] = useState("");
   const [showGoalForm, setShowGoalForm] = useState(false);
 
+  const [showAlerts, setShowAlerts] = useState(true);
+
   // Fetch snapshots from edge function
   const { data: snapshots = [], isLoading } = useQuery({
     queryKey: ["athlete-snapshots", user?.id],
@@ -73,6 +76,54 @@ const CoachDashboard = () => {
     },
     enabled: !!user,
     refetchInterval: 60000,
+  });
+
+  // Generate alerts on load (fire-and-forget)
+  useQuery({
+    queryKey: ["generate-alerts", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("generate-alerts");
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["coach-alerts"] });
+      return data;
+    },
+    enabled: !!user,
+    refetchInterval: 300000, // every 5 min
+    staleTime: 240000,
+  });
+
+  // Fetch alerts
+  const { data: alerts = [] } = useQuery({
+    queryKey: ["coach-alerts", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from("coach_alerts")
+        .select("*")
+        .eq("coach_id", user.id)
+        .eq("is_read", false)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const dismissAlert = useMutation({
+    mutationFn: async (alertId: string) => {
+      const { error } = await supabase.from("coach_alerts").update({ is_read: true }).eq("id", alertId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coach-alerts"] }),
+  });
+
+  const dismissAll = useMutation({
+    mutationFn: async () => {
+      if (!user) return;
+      const { error } = await supabase.from("coach_alerts").update({ is_read: true }).eq("coach_id", user.id).eq("is_read", false);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["coach-alerts"] }),
   });
 
   const selected = snapshots.find((s) => s.athlete_id === selectedId) || null;
@@ -207,6 +258,65 @@ const CoachDashboard = () => {
           <div><p className="text-2xl font-bold font-['Space_Grotesk']">{injured}</p><p className="text-xs text-muted-foreground">Injured / Sore</p></div>
         </CardContent></Card>
       </div>
+
+      {/* Smart Alerts Center */}
+      {alerts.length > 0 && showAlerts && (
+        <Card className="mb-8 border-amber-500/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-amber-400" />
+                <CardTitle className="text-lg font-['Space_Grotesk']">Smart Alerts</CardTitle>
+                <Badge variant="secondary" className="text-xs">{alerts.length}</Badge>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => dismissAll.mutate()}>
+                  Mark all read
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowAlerts(false)}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2 max-h-64 overflow-y-auto">
+            {alerts.map((alert: any) => {
+              const severityIcon = alert.severity === "error"
+                ? <ShieldAlert className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                : alert.severity === "warning"
+                ? <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                : <Info className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />;
+
+              const severityBorder = alert.severity === "error"
+                ? "border-red-500/20 bg-red-500/5"
+                : alert.severity === "warning"
+                ? "border-amber-500/20 bg-amber-500/5"
+                : "border-blue-500/20 bg-blue-500/5";
+
+              return (
+                <div key={alert.id} className={`rounded-lg border p-3 flex items-start gap-3 ${severityBorder}`}>
+                  {severityIcon}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{alert.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{alert.message}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {format(new Date(alert.created_at), "MMM d, h:mm a")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={() => dismissAlert.mutate(alert.id)}
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Athlete cards */}
       {isLoading ? (
