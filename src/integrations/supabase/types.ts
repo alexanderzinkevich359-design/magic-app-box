@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      athlete_drill_completions: {
+        Row: {
+          athlete_id: string
+          completed_at: string
+          drill_id: string
+          id: string
+          program_id: string
+        }
+        Insert: {
+          athlete_id: string
+          completed_at?: string
+          drill_id: string
+          id?: string
+          program_id: string
+        }
+        Update: {
+          athlete_id?: string
+          completed_at?: string
+          drill_id?: string
+          id?: string
+          program_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athlete_drill_completions_drill_id_fkey"
+            columns: ["drill_id"]
+            isOneToOne: false
+            referencedRelation: "drills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "athlete_drill_completions_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athlete_goals: {
         Row: {
           athlete_id: string
@@ -174,27 +213,33 @@ export type Database = {
       coach_athlete_links: {
         Row: {
           athlete_user_id: string
+          bat_hand: string | null
           coach_user_id: string
           created_at: string
           id: string
           position: string | null
           sport_id: string | null
+          throw_hand: string | null
         }
         Insert: {
           athlete_user_id: string
+          bat_hand?: string | null
           coach_user_id: string
           created_at?: string
           id?: string
           position?: string | null
           sport_id?: string | null
+          throw_hand?: string | null
         }
         Update: {
           athlete_user_id?: string
+          bat_hand?: string | null
           coach_user_id?: string
           created_at?: string
           id?: string
           position?: string | null
           sport_id?: string | null
+          throw_hand?: string | null
         }
         Relationships: [
           {
