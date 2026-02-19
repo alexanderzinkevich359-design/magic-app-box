@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Target, Dumbbell, TrendingUp, CheckCircle2, Clock, Loader2, Video, Mail, UserPlus, XCircle } from "lucide-react";
+import AvatarUpload from "@/components/AvatarUpload";
+import ImprovementVideos from "@/components/ImprovementVideos";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const AthleteDashboard = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
   // Goals from coach
@@ -213,9 +215,18 @@ const AthleteDashboard = () => {
 
   return (
     <DashboardLayout role="athlete">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold font-['Space_Grotesk']">My Dashboard 👋</h1>
-        <p className="text-muted-foreground mt-1">Your performance overview and at-home workouts</p>
+      <div className="mb-8 flex items-center gap-4">
+        <AvatarUpload
+          userId={user?.id || ""}
+          currentUrl={profile?.avatar_url || null}
+          initials={profile ? `${profile.first_name[0] || ""}${profile.last_name[0] || ""}` : "?"}
+          onUploaded={() => window.location.reload()}
+          size="lg"
+        />
+        <div>
+          <h1 className="text-3xl font-bold font-['Space_Grotesk']">My Dashboard 👋</h1>
+          <p className="text-muted-foreground mt-1">Your performance overview and at-home workouts</p>
+        </div>
       </div>
 
       {/* Team Invites */}
@@ -421,6 +432,13 @@ const AthleteDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Improvement Videos from Coach */}
+      {user && (
+        <div className="mt-8">
+          <ImprovementVideos athleteId={user.id} readOnly />
+        </div>
+      )}
     </DashboardLayout>
   );
 };

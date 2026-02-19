@@ -89,6 +89,36 @@ export type Database = {
         }
         Relationships: []
       }
+      athlete_improvement_videos: {
+        Row: {
+          athlete_id: string
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          title: string
+          video_url: string
+        }
+        Insert: {
+          athlete_id: string
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          title: string
+          video_url: string
+        }
+        Update: {
+          athlete_id?: string
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          title?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
       athlete_metrics: {
         Row: {
           athlete_id: string
