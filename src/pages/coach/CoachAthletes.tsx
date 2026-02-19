@@ -20,6 +20,35 @@ const POSITIONS = ["Pitcher", "Catcher", "Infielder", "Outfielder", "Hitter"] as
 type Position = (typeof POSITIONS)[number];
 const HANDS = ["Right", "Left", "Switch"] as const;
 
+// Position-based workout suggestions for baseball
+const POSITION_SUGGESTIONS: Record<Position, { title: string; drills: string[] }[]> = {
+  Pitcher: [
+    { title: "Arm Care & Recovery", drills: ["Band pull-aparts (3×15)", "Shoulder external rotation (3×12)", "Prone Y-T-W raises (2×10)", "Wrist flexor stretches"] },
+    { title: "Lower Body Power", drills: ["Single-leg RDL (3×8 each)", "Lateral lunges (3×10)", "Box jumps (3×6)", "Split squat holds (3×30s)"] },
+    { title: "Core & Rotation", drills: ["Pallof press (3×12)", "Med ball rotational throws (3×8)", "Dead bugs (3×10)", "Bird dogs (3×10)"] },
+  ],
+  Catcher: [
+    { title: "Hip Mobility & Squat Endurance", drills: ["Deep squat holds (3×30s)", "Hip 90/90 stretches (2×10)", "Cossack squats (3×8)", "Ankle mobility circles (2×15)"] },
+    { title: "Quick Feet & Reaction", drills: ["Lateral shuffles (4×10yd)", "Pop-up to throw drill (3×8)", "Reaction ball drops (3×10)", "Sprint starts (4×10yd)"] },
+    { title: "Arm Strength", drills: ["Long toss progression", "Band pull-aparts (3×15)", "Reverse throws (3×8)", "Prone I-Y-T raises (2×10)"] },
+  ],
+  Infielder: [
+    { title: "Lateral Agility", drills: ["Lateral bounds (3×8)", "Crossover steps (3×10yd)", "Cone drills (4 sets)", "Pro agility shuttle (3 reps)"] },
+    { title: "Quick Hands & Reaction", drills: ["Short hop drill (3×15)", "Bare hand grounders (3×10)", "Wall ball reaction (3×20)", "Tennis ball drops (3×10)"] },
+    { title: "Explosive First Step", drills: ["Sprinter starts (4×10yd)", "Box jumps (3×6)", "Single-leg hops (3×8)", "Depth jumps (3×5)"] },
+  ],
+  Outfielder: [
+    { title: "Sprint & Route Speed", drills: ["Fly sprints (4×60yd)", "Drop step drill (3×8 each)", "W-pattern sprints (3 sets)", "Backpedal to sprint (4×20yd)"] },
+    { title: "Arm Strength & Accuracy", drills: ["Long toss (progressive)", "Crow hop throws (3×8)", "Band external rotation (3×12)", "Prone Y raises (2×10)"] },
+    { title: "Jump & Track", drills: ["Vertical jumps (3×6)", "Lateral wall jumps (3×8)", "Box jumps (3×6)", "Depth jumps (3×5)"] },
+  ],
+  Hitter: [
+    { title: "Bat Speed & Power", drills: ["Overload/underload swings (3×10)", "Tee work focus on contact (3×15)", "One-arm swings (2×10 each)", "Med ball rotational slams (3×8)"] },
+    { title: "Hip & Core Rotation", drills: ["Cable woodchops (3×10)", "Pallof press (3×12)", "Hip crossover stretches (2×10)", "Rotational med ball throws (3×8)"] },
+    { title: "Lower Body Explosiveness", drills: ["Box jumps (3×6)", "Broad jumps (3×5)", "Split squat jumps (3×8)", "Single-leg RDL (3×8)"] },
+  ],
+};
+
 type AthleteWithDetails = {
   id: string;
   athlete_user_id: string;
@@ -179,17 +208,14 @@ const CoachAthletes = () => {
     },
   });
 
-  const updateHandDominance = useMutation({
-    mutationFn: async ({ linkId, throwHand, batHand }: { linkId: string; throwHand: string; batHand: string }) => {
-      const { error } = await supabase.from("coach_athlete_links").update({
-        throw_hand: throwHand || null,
-        bat_hand: batHand || null,
-      }).eq("id", linkId);
+  const updateAthleteLink = useMutation({
+    mutationFn: async ({ linkId, updates }: { linkId: string; updates: Record<string, any> }) => {
+      const { error } = await supabase.from("coach_athlete_links").update(updates).eq("id", linkId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
-      toast({ title: "Hand dominance updated" });
+      toast({ title: "Athlete updated" });
     },
   });
 
@@ -388,23 +414,37 @@ const CoachAthletes = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Overview Tab — Goals & Hand Dominance */}
+                {/* Overview Tab — Position, Hand Dominance, Suggestions & Goals */}
                 <TabsContent value="overview" className="space-y-4 mt-4">
-                  {/* Hand dominance edit */}
+                  {/* Athlete Details */}
                   <Card>
                     <CardHeader className="py-3 px-4">
-                      <CardTitle className="text-sm">Hand Dominance</CardTitle>
+                      <CardTitle className="text-sm">Athlete Details</CardTitle>
                     </CardHeader>
-                    <CardContent className="px-4 pb-4">
+                    <CardContent className="px-4 pb-4 space-y-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Position</Label>
+                        <Select
+                          value={selectedAthlete.position || ""}
+                          onValueChange={(v) => updateAthleteLink.mutate({
+                            linkId: selectedAthlete.id,
+                            updates: { position: v },
+                          })}
+                        >
+                          <SelectTrigger className="h-8"><SelectValue placeholder="Set position..." /></SelectTrigger>
+                          <SelectContent>
+                            {POSITIONS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs">Throwing Hand</Label>
                           <Select
                             value={selectedAthlete.throw_hand || ""}
-                            onValueChange={(v) => updateHandDominance.mutate({
+                            onValueChange={(v) => updateAthleteLink.mutate({
                               linkId: selectedAthlete.id,
-                              throwHand: v,
-                              batHand: selectedAthlete.bat_hand || "",
+                              updates: { throw_hand: v },
                             })}
                           >
                             <SelectTrigger className="h-8"><SelectValue placeholder="Set..." /></SelectTrigger>
@@ -417,10 +457,9 @@ const CoachAthletes = () => {
                           <Label className="text-xs">Batting Hand</Label>
                           <Select
                             value={selectedAthlete.bat_hand || ""}
-                            onValueChange={(v) => updateHandDominance.mutate({
+                            onValueChange={(v) => updateAthleteLink.mutate({
                               linkId: selectedAthlete.id,
-                              throwHand: selectedAthlete.throw_hand || "",
-                              batHand: v,
+                              updates: { bat_hand: v },
                             })}
                           >
                             <SelectTrigger className="h-8"><SelectValue placeholder="Set..." /></SelectTrigger>
@@ -432,6 +471,34 @@ const CoachAthletes = () => {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Position-based Suggestions */}
+                  {selectedAthlete.position && POSITION_SUGGESTIONS[selectedAthlete.position as Position] && (
+                    <Card>
+                      <CardHeader className="py-3 px-4">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          Suggested Workouts for {selectedAthlete.position}
+                        </CardTitle>
+                        <CardDescription className="text-xs">Position-specific drills to assign as at-home workouts</CardDescription>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 space-y-3">
+                        {POSITION_SUGGESTIONS[selectedAthlete.position as Position].map((suggestion, idx) => (
+                          <div key={idx} className="rounded-lg border bg-secondary/30 p-3">
+                            <p className="text-sm font-medium">{suggestion.title}</p>
+                            <ul className="mt-1.5 space-y-1">
+                              {suggestion.drills.map((drill, dIdx) => (
+                                <li key={dIdx} className="text-xs text-muted-foreground flex items-center gap-2">
+                                  <span className="h-1 w-1 rounded-full bg-primary shrink-0" />
+                                  {drill}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Goals */}
                   <div className="flex items-center justify-between">
