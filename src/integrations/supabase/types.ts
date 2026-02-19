@@ -191,6 +191,48 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_schedule: {
+        Row: {
+          athlete_id: string
+          coach_id: string
+          color: string | null
+          created_at: string
+          end_time: string | null
+          id: string
+          notes: string | null
+          scheduled_date: string
+          start_time: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          athlete_id: string
+          coach_id: string
+          color?: string | null
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          scheduled_date: string
+          start_time?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          athlete_id?: string
+          coach_id?: string
+          color?: string | null
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          scheduled_date?: string
+          start_time?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       drills: {
         Row: {
           coaching_cues: string | null

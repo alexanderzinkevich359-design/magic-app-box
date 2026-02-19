@@ -15,7 +15,7 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: "Dashboard", path: "/coach", icon: <Home className="h-4 w-4" /> },
     { label: "Programs", path: "/coach/programs", icon: <Dumbbell className="h-4 w-4" /> },
     { label: "Athletes", path: "/coach/athletes", icon: <Users className="h-4 w-4" /> },
-    { label: "Video Review", path: "/coach/videos", icon: <Video className="h-4 w-4" /> },
+    { label: "Schedule", path: "/coach/schedule", icon: <Calendar className="h-4 w-4" /> },
     { label: "Analytics", path: "/coach/analytics", icon: <BarChart3 className="h-4 w-4" /> },
   ],
   parent: [
