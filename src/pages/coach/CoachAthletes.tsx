@@ -219,6 +219,57 @@ const CoachAthletes = () => {
     },
   });
 
+  // One-click create program from suggestion, publish it, and assign to athlete
+  const createFromSuggestion = useMutation({
+    mutationFn: async ({ suggestion, athleteId, position, sportId }: { suggestion: { title: string; drills: string[] }; athleteId: string; position: string; sportId: string }) => {
+      // 1. Create program
+      const { data: program, error: pErr } = await supabase
+        .from("programs")
+        .insert({
+          coach_id: user!.id,
+          name: `${position} – ${suggestion.title}`,
+          description: `Auto-generated ${position.toLowerCase()} workout: ${suggestion.title}`,
+          sport_id: sportId,
+          is_published: true,
+          position_type: position,
+        })
+        .select("id")
+        .single();
+      if (pErr) throw pErr;
+
+      // 2. Create a single workout
+      const { data: workout, error: wErr } = await supabase
+        .from("workouts")
+        .insert({ program_id: program.id, title: suggestion.title, order_index: 0 })
+        .select("id")
+        .single();
+      if (wErr) throw wErr;
+
+      // 3. Insert drills
+      const drillRows = suggestion.drills.map((name, idx) => ({
+        workout_id: workout.id,
+        name,
+        order_index: idx,
+      }));
+      const { error: dErr } = await supabase.from("drills").insert(drillRows);
+      if (dErr) throw dErr;
+
+      // 4. Assign to athlete
+      const { error: aErr } = await supabase.from("athlete_programs").insert({
+        athlete_id: athleteId,
+        program_id: program.id,
+        assigned_by: user!.id,
+      });
+      if (aErr) throw aErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["coach-programs-published"] });
+      toast({ title: "Program created & assigned!" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const addAthleteByEmail = useMutation({
     mutationFn: async () => {
       if (!user || !newEmail || !newPosition) throw new Error("Missing fields");
@@ -587,7 +638,28 @@ const CoachAthletes = () => {
                       <CardContent className="px-4 pb-4 space-y-3">
                         {POSITION_SUGGESTIONS[selectedAthlete.position as Position].map((suggestion, idx) => (
                           <div key={idx} className="rounded-lg border bg-secondary/30 p-3">
-                            <p className="text-sm font-medium">{suggestion.title}</p>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-sm font-medium">{suggestion.title}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0 text-xs h-7 gap-1"
+                                disabled={createFromSuggestion.isPending}
+                                onClick={() => createFromSuggestion.mutate({
+                                  suggestion,
+                                  athleteId: selectedAthlete.athlete_user_id,
+                                  position: selectedAthlete.position!,
+                                  sportId: selectedAthlete.sport_id,
+                                })}
+                              >
+                                {createFromSuggestion.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Plus className="h-3 w-3" />
+                                )}
+                                Create & Assign
+                              </Button>
+                            </div>
                             <ul className="mt-1.5 space-y-1">
                               {suggestion.drills.map((drill, dIdx) => (
                                 <li key={dIdx} className="text-xs text-muted-foreground flex items-center gap-2">
