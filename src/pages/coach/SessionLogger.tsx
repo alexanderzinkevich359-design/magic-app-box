@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +18,19 @@ import { format } from "date-fns";
 
 const SESSION_TYPES = ["practice", "game", "lesson", "assessment", "conditioning"] as const;
 const STATUSES = ["completed", "missed", "scheduled"] as const;
-const INTENSITIES = ["low", "medium", "high"] as const;
+
+const RPE_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: "Rest", color: "text-emerald-400" },
+  2: { label: "Very Light", color: "text-emerald-400" },
+  3: { label: "Light", color: "text-green-400" },
+  4: { label: "Moderate", color: "text-green-400" },
+  5: { label: "Moderate", color: "text-yellow-400" },
+  6: { label: "Hard", color: "text-yellow-400" },
+  7: { label: "Hard", color: "text-orange-400" },
+  8: { label: "Very Hard", color: "text-orange-400" },
+  9: { label: "Max Effort", color: "text-red-400" },
+  10: { label: "All Out", color: "text-red-500" },
+};
 
 const PITCH_TYPES = ["Fastball", "Curveball", "Slider", "Changeup", "Cutter", "Sinker", "Splitter", "Knuckleball"] as const;
 
@@ -102,7 +115,7 @@ const SessionLogger = () => {
   const [durationMin, setDurationMin] = useState("");
   const [throwCount, setThrowCount] = useState("");
   const [drillReps, setDrillReps] = useState("");
-  const [intensity, setIntensity] = useState<string>("medium");
+  const [intensity, setIntensity] = useState<string>("5");
   const [notes, setNotes] = useState("");
   const [sorenessFlag, setSorenessFlag] = useState(false);
   const [injuryNote, setInjuryNote] = useState("");
@@ -212,7 +225,7 @@ const SessionLogger = () => {
     setDurationMin("");
     setThrowCount("");
     setDrillReps("");
-    setIntensity("medium");
+    setIntensity("5");
     setNotes("");
     setSorenessFlag(false);
     setInjuryNote("");
@@ -272,8 +285,8 @@ const SessionLogger = () => {
             </div>
           </div>
 
-          {/* Type, status, intensity */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Type & status */}
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Type</Label>
               <Select value={sessionType} onValueChange={setSessionType}>
@@ -296,16 +309,33 @@ const SessionLogger = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Intensity</Label>
-              <Select value={intensity} onValueChange={setIntensity}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {INTENSITIES.map((i) => (
-                    <SelectItem key={i} value={i}>{i.charAt(0).toUpperCase() + i.slice(1)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          </div>
+
+          {/* RPE Scale */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>RPE (Rate of Perceived Exertion)</Label>
+              <div className="flex items-center gap-2">
+                <span className={`text-lg font-bold font-['Space_Grotesk'] ${RPE_LABELS[parseInt(intensity)]?.color || ""}`}>
+                  {intensity}
+                </span>
+                <span className={`text-xs ${RPE_LABELS[parseInt(intensity)]?.color || "text-muted-foreground"}`}>
+                  {RPE_LABELS[parseInt(intensity)]?.label || ""}
+                </span>
+              </div>
+            </div>
+            <Slider
+              value={[parseInt(intensity)]}
+              onValueChange={(v) => setIntensity(String(v[0]))}
+              min={1}
+              max={10}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground px-1">
+              <span>1 - Rest</span>
+              <span>5 - Moderate</span>
+              <span>10 - All Out</span>
             </div>
           </div>
 
@@ -341,8 +371,11 @@ const SessionLogger = () => {
           )}
 
           {/* General workload — adapts by position */}
+          {athleteId && (
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Workload</Label>
+            <Label className="text-sm font-medium">
+              Workload {position && <span className="text-xs text-muted-foreground font-normal ml-1">({position})</span>}
+            </Label>
             <div className={`grid gap-4 ${position === "Pitcher" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Duration (min)</Label>
@@ -377,6 +410,7 @@ const SessionLogger = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Soreness */}
           <div className="space-y-3">
