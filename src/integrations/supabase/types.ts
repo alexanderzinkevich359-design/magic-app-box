@@ -510,6 +510,56 @@ export type Database = {
         }
         Relationships: []
       }
+      team_invites: {
+        Row: {
+          athlete_email: string
+          athlete_name: string
+          bat_hand: string | null
+          coach_id: string
+          created_at: string
+          id: string
+          position: string | null
+          responded_at: string | null
+          sport_id: string | null
+          status: string
+          throw_hand: string | null
+        }
+        Insert: {
+          athlete_email: string
+          athlete_name: string
+          bat_hand?: string | null
+          coach_id: string
+          created_at?: string
+          id?: string
+          position?: string | null
+          responded_at?: string | null
+          sport_id?: string | null
+          status?: string
+          throw_hand?: string | null
+        }
+        Update: {
+          athlete_email?: string
+          athlete_name?: string
+          bat_hand?: string | null
+          coach_id?: string
+          created_at?: string
+          id?: string
+          position?: string | null
+          responded_at?: string | null
+          sport_id?: string | null
+          status?: string
+          throw_hand?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invites_sport_id_fkey"
+            columns: ["sport_id"]
+            isOneToOne: false
+            referencedRelation: "sports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_sessions: {
         Row: {
           athlete_id: string

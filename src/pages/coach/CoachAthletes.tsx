@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Sparkles, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -270,32 +270,46 @@ const CoachAthletes = () => {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
-  const addAthleteByEmail = useMutation({
+  // Fetch pending invites
+  const { data: pendingInvites = [] } = useQuery({
+    queryKey: ["coach-pending-invites", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("team_invites")
+        .select("*")
+        .eq("coach_id", user.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const sendInviteMutation = useMutation({
     mutationFn: async () => {
       if (!user || !newEmail || !newPosition) throw new Error("Missing fields");
-      const { data: authUsers } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name")
-        .or(`first_name.ilike.%${newFirstName}%,last_name.ilike.%${newLastName}%`);
-      if (!authUsers?.length) throw new Error("Athlete not found. They need to create an account first.");
-
-      const athleteUser = authUsers[0];
       const { data: sportData } = await supabase.from("sports").select("id").eq("slug", "baseball").single();
 
-      const { error } = await supabase.from("coach_athlete_links").insert({
-        coach_user_id: user.id,
-        athlete_user_id: athleteUser.user_id,
-        sport_id: sportData?.id || null,
+      const { error } = await supabase.from("team_invites").insert({
+        coach_id: user.id,
+        athlete_email: newEmail.toLowerCase().trim(),
+        athlete_name: `${newFirstName} ${newLastName}`.trim(),
         position: newPosition,
         throw_hand: newThrowHand || null,
         bat_hand: newBatHand || null,
+        sport_id: sportData?.id || null,
       });
-      if (error) throw error;
+      if (error) {
+        if (error.code === "23505") throw new Error("An invite has already been sent to this email.");
+        throw error;
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
+      queryClient.invalidateQueries({ queryKey: ["coach-pending-invites"] });
       resetAddForm();
-      toast({ title: "Athlete linked!" });
+      toast({ title: "Invite sent!", description: "The athlete will see the invite when they log in." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -313,7 +327,7 @@ const CoachAthletes = () => {
           <p className="text-muted-foreground mt-1">Manage your roster, goals, and at-home workouts</p>
         </div>
         <Button onClick={() => setShowAddDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Add Athlete
+          <Mail className="h-4 w-4 mr-2" /> Invite Athlete
         </Button>
       </div>
 
@@ -326,8 +340,8 @@ const CoachAthletes = () => {
           <CardContent className="py-16 text-center">
             <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="font-semibold text-lg">No athletes yet</h3>
-            <p className="text-muted-foreground text-sm mt-1 mb-4">Link athletes to your roster to start coaching</p>
-            <Button onClick={() => setShowAddDialog(true)}><Plus className="h-4 w-4 mr-2" /> Add Athlete</Button>
+            <p className="text-muted-foreground text-sm mt-1 mb-4">Invite athletes to join your team</p>
+            <Button onClick={() => setShowAddDialog(true)}><Mail className="h-4 w-4 mr-2" /> Invite Athlete</Button>
           </CardContent>
         </Card>
       ) : (
@@ -374,12 +388,44 @@ const CoachAthletes = () => {
         </Card>
       )}
 
-      {/* Add Athlete Dialog */}
+      {/* Pending Invites */}
+      {pendingInvites.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-['Space_Grotesk'] flex items-center gap-2">
+              <Clock className="h-5 w-5 text-muted-foreground" /> Pending Invites
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y">
+              {pendingInvites.map((invite: any) => (
+                <div key={invite.id} className="flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-accent/30 flex items-center justify-center">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{invite.athlete_name}</p>
+                      <p className="text-xs text-muted-foreground">{invite.athlete_email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">{invite.position}</Badge>
+                    <Badge variant="secondary" className="text-xs">Pending</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Invite Athlete Dialog */}
       <Dialog open={showAddDialog} onOpenChange={(open) => !open && resetAddForm()}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-['Space_Grotesk']">Add Athlete</DialogTitle>
-            <DialogDescription>Link an existing athlete to your roster</DialogDescription>
+            <DialogTitle className="font-['Space_Grotesk']">Invite Athlete</DialogTitle>
+            <DialogDescription>Send an invite — the athlete will see it when they log in</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
@@ -428,9 +474,9 @@ const CoachAthletes = () => {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={resetAddForm}>Cancel</Button>
-            <Button onClick={() => addAthleteByEmail.mutate()} disabled={!newPosition || !newFirstName || addAthleteByEmail.isPending}>
-              {addAthleteByEmail.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Add Athlete
+            <Button onClick={() => sendInviteMutation.mutate()} disabled={!newPosition || !newFirstName || !newEmail || sendInviteMutation.isPending}>
+              {sendInviteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              <Mail className="h-4 w-4 mr-2" /> Send Invite
             </Button>
           </DialogFooter>
         </DialogContent>
