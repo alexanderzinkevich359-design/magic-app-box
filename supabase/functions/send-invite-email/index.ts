@@ -73,7 +73,14 @@ serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
-      console.error("Resend API error:", data);
+      console.warn("Resend API error:", data);
+      // Return 200 with warning for sandbox/domain issues (403) so the invite flow isn't blocked
+      if (res.status === 403) {
+        return new Response(JSON.stringify({ success: false, warning: "Email not sent — domain not verified on Resend. Invite was still created." }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       throw new Error(`Resend API failed [${res.status}]: ${JSON.stringify(data)}`);
     }
 
