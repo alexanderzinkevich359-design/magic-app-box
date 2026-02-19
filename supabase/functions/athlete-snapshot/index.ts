@@ -35,8 +35,10 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const { data: { user }, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !user) throw new Error("Unauthorized");
+    const token = authHeader.replace("Bearer ", "");
+    const { data, error: authErr } = await supabase.auth.getClaims(token);
+    if (authErr || !data?.claims) throw new Error("Unauthorized");
+    const user = { id: data.claims.sub as string };
 
     // 1. Get coach's athletes with positions
     const { data: links } = await supabase
