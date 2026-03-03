@@ -14,7 +14,7 @@ interface AthleteVideoSubmissionsProps {
   athleteId: string;
   /** If true, athlete can upload. If false, coach read-only view with feedback. */
   canUpload?: boolean;
-  /** Coach ID — enables adding feedback */
+  /** Coach ID: enables adding feedback */
   coachId?: string;
 }
 

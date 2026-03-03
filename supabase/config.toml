@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.send-invite-email]
 verify_jwt = false
+
+[functions.meta-oauth]
+verify_jwt = true
+
+[functions.social-publish]
+verify_jwt = true
+
+[functions.publish-scheduled-posts]
+verify_jwt = false

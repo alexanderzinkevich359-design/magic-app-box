@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useSportConfigById } from "@/hooks/useSportConfig";
 
 const SESSION_TYPES = ["practice", "game", "lesson", "assessment", "conditioning"] as const;
 const STATUSES = ["completed", "missed", "scheduled"] as const;
@@ -31,8 +32,6 @@ const RPE_LABELS: Record<number, { label: string; color: string }> = {
   9: { label: "Max Effort", color: "text-red-400" },
   10: { label: "All Out", color: "text-red-500" },
 };
-
-const PITCH_TYPES = ["Fastball", "Curveball", "Slider", "Changeup", "Cutter", "Sinker", "Splitter", "Knuckleball"] as const;
 
 const SORENESS_AREAS = [
   "Shoulder", "Elbow", "Forearm/Wrist", "Upper Back", "Lower Back",
@@ -99,8 +98,6 @@ const STRETCHING_SUGGESTIONS: Record<string, { name: string; description: string
   ],
 };
 
-type Position = "Pitcher" | "Catcher" | "Infielder" | "Outfielder" | "Hitter";
-
 const SessionLogger = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -131,7 +128,7 @@ const SessionLogger = () => {
       if (!user) return [];
       const { data: links } = await supabase
         .from("coach_athlete_links")
-        .select("athlete_user_id, position")
+        .select("athlete_user_id, position, sport_id")
         .eq("coach_user_id", user.id);
       if (!links?.length) return [];
       const { data: profiles } = await supabase
@@ -143,23 +140,24 @@ const SessionLogger = () => {
         return {
           id: p.user_id,
           name: `${p.first_name} ${p.last_name}`.trim(),
-          position: (link?.position as Position) || null,
+          position: link?.position || null,
+          sport_id: link?.sport_id || null,
         };
       });
     },
     enabled: !!user,
   });
 
-  const { data: baseballSportId } = useQuery({
-    queryKey: ["baseball-sport-id"],
-    queryFn: async () => {
-      const { data } = await supabase.from("sports").select("id").eq("slug", "baseball").single();
-      return data?.id || null;
-    },
-  });
-
   const selectedAthlete = athletes.find((a) => a.id === athleteId);
   const position = selectedAthlete?.position || null;
+
+  const { data: sportConfig } = useSportConfigById(selectedAthlete?.sport_id ?? null);
+  const sessionCfg = sportConfig?.session_config;
+  const isPitchCountPos = !!position && (sessionCfg?.pitchCountPositions ?? []).includes(position);
+  const pitchTypes = sessionCfg?.pitchTypes ?? [];
+  const hasPitchTypeUI = pitchTypes.length > 0 && isPitchCountPos;
+  const effectiveThrowLabel = (position && sessionCfg?.throwLabelByPosition?.[position]) ?? sessionCfg?.throwLabel ?? null;
+  const effectiveRepsLabel = (position && sessionCfg?.repsLabelByPosition?.[position]) ?? "Drill Reps";
 
   // Compute total pitch count from individual pitch type counts
   const totalPitchCount = useMemo(() => {
@@ -172,13 +170,13 @@ const SessionLogger = () => {
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      if (!user || !athleteId || !baseballSportId) throw new Error("Missing required fields");
+      if (!user || !athleteId) throw new Error("Missing required fields");
 
-      const finalPitchCount = position === "Pitcher" ? totalPitchCount : 0;
+      const finalPitchCount = isPitchCountPos ? totalPitchCount : 0;
 
-      // Build notes with pitch breakdown for pitchers
+      // Build notes with pitch/serve breakdown
       let fullNotes = notes || "";
-      if (position === "Pitcher" && totalPitchCount > 0) {
+      if (isPitchCountPos && totalPitchCount > 0) {
         const breakdown = Object.entries(pitchCounts)
           .filter(([, v]) => parseInt(v) > 0)
           .map(([type, count]) => `${type}: ${count}`)
@@ -193,7 +191,7 @@ const SessionLogger = () => {
       const { error } = await supabase.from("training_sessions").insert({
         coach_id: user.id,
         athlete_id: athleteId,
-        sport_id: baseballSportId,
+        sport_id: selectedAthlete?.sport_id ?? null,
         session_date: sessionDate,
         session_type: sessionType,
         status,
@@ -339,8 +337,8 @@ const SessionLogger = () => {
             </div>
           </div>
 
-          {/* Position-specific workload section */}
-          {position === "Pitcher" && (
+          {/* Pitch/serve breakdown (sport config driven) */}
+          {hasPitchTypeUI && (
             <Card className="border-primary/20 bg-primary/5">
               <CardHeader className="pb-2 pt-4 px-4">
                 <CardTitle className="text-sm font-['Space_Grotesk'] flex items-center justify-between">
@@ -352,7 +350,7 @@ const SessionLogger = () => {
               </CardHeader>
               <CardContent className="px-4 pb-4">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {PITCH_TYPES.map((type) => (
+                  {pitchTypes.map((type) => (
                     <div key={type} className="space-y-1">
                       <Label className="text-xs text-muted-foreground">{type}</Label>
                       <Input
@@ -370,42 +368,27 @@ const SessionLogger = () => {
             </Card>
           )}
 
-          {/* General workload — adapts by position */}
+          {/* General workload: adapts by sport config */}
           {athleteId && (
           <div className="space-y-2">
             <Label className="text-sm font-medium">
               Workload {position && <span className="text-xs text-muted-foreground font-normal ml-1">({position})</span>}
             </Label>
-            <div className={`grid gap-4 ${position === "Pitcher" ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2 sm:grid-cols-4"}`}>
+            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Duration (min)</Label>
                 <Input type="number" min={0} placeholder="60" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
               </div>
 
-              {position !== "Pitcher" && (
+              {effectiveThrowLabel !== null && (
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    {position === "Catcher" ? "Throws to 2B" : position === "Outfielder" ? "Throws" : "Throw Count"}
-                  </Label>
-                  <Input type="number" min={0} placeholder="0" value={throwCount} onChange={(e) => setThrowCount(e.target.value)} />
-                </div>
-              )}
-
-              {position === "Pitcher" && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Throw Count (warmup)</Label>
+                  <Label className="text-xs text-muted-foreground">{effectiveThrowLabel}</Label>
                   <Input type="number" min={0} placeholder="0" value={throwCount} onChange={(e) => setThrowCount(e.target.value)} />
                 </div>
               )}
 
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  {position === "Hitter" ? "Swings / At-Bats" :
-                   position === "Catcher" ? "Blocking Reps" :
-                   position === "Infielder" ? "Fielding Reps" :
-                   position === "Outfielder" ? "Fly Ball Reps" :
-                   "Drill Reps"}
-                </Label>
+                <Label className="text-xs text-muted-foreground">{effectiveRepsLabel}</Label>
                 <Input type="number" min={0} placeholder="0" value={drillReps} onChange={(e) => setDrillReps(e.target.value)} />
               </div>
             </div>
@@ -423,11 +406,7 @@ const SessionLogger = () => {
                 <div className="space-y-2">
                   <Label>Injury / Soreness Details</Label>
                   <Input
-                    placeholder={
-                      position === "Pitcher" ? "e.g. Sore right shoulder, elbow tightness" :
-                      position === "Catcher" ? "e.g. Sore knees, hip tightness" :
-                      "e.g. Sore right shoulder"
-                    }
+                    placeholder="e.g. Describe any soreness or discomfort"
                     value={injuryNote}
                     onChange={(e) => setInjuryNote(e.target.value)}
                   />

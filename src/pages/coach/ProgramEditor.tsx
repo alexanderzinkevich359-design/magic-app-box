@@ -277,7 +277,7 @@ const ProgramEditor = () => {
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Title</Label>
-              <Input placeholder="e.g. Day 1 — Arm Care & Long Toss" value={workoutTitle} onChange={(e) => setWorkoutTitle(e.target.value)} />
+              <Input placeholder="e.g. Day 1: Arm Care and Long Toss" value={workoutTitle} onChange={(e) => setWorkoutTitle(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Description (optional)</Label>

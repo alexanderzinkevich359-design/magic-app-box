@@ -15,16 +15,19 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Dumbbell, ChevronRight, Clock, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 
-const SKILL_LEVELS = ["beginner", "intermediate", "advanced"];
+const DIFFICULTY_LEVELS = [1, 2, 3, 4, 5];
 
 const CoachPrograms = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const tier = profile?.tier ?? "free";
+  const PROGRAM_LIMITS: Record<string, number> = { free: 1, basic: 5, max: Infinity };
+  const programLimit = PROGRAM_LIMITS[tier] ?? 1;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [skillLevel, setSkillLevel] = useState("beginner");
+  const [difficultyLevel, setDifficultyLevel] = useState("1");
   const [durationWeeks, setDurationWeeks] = useState("");
   const [positionType, setPositionType] = useState("");
 
@@ -59,7 +62,7 @@ const CoachPrograms = () => {
         sport_id: sports[0].id,
         name: name.trim(),
         description: description.trim() || null,
-        skill_level: skillLevel,
+        skill_level: difficultyLevel,
         duration_weeks: durationWeeks ? parseInt(durationWeeks) : null,
         position_type: positionType.trim() || null,
       }).select().single();
@@ -69,7 +72,7 @@ const CoachPrograms = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["coach-programs"] });
       setShowCreate(false);
-      setName(""); setDescription(""); setSkillLevel("beginner"); setDurationWeeks(""); setPositionType("");
+      setName(""); setDescription(""); setDifficultyLevel("1"); setDurationWeeks(""); setPositionType("");
       toast.success("Program created");
       navigate(`/coach/programs/${data.id}`);
     },
@@ -83,7 +86,13 @@ const CoachPrograms = () => {
           <h1 className="text-3xl font-bold font-['Space_Grotesk']">Programs</h1>
           <p className="text-muted-foreground mt-1">Build and manage training programs</p>
         </div>
-        <Button onClick={() => setShowCreate(true)}>
+        <Button onClick={() => {
+          if ((programs?.length ?? 0) >= programLimit) {
+            toast.error(`Your ${tier} plan allows ${programLimit} program${programLimit === 1 ? "" : "s"}. Upgrade your plan to create more.`);
+            return;
+          }
+          setShowCreate(true);
+        }}>
           <Plus className="h-4 w-4 mr-1" /> New Program
         </Button>
       </div>
@@ -118,7 +127,7 @@ const CoachPrograms = () => {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary" className="capitalize">{program.skill_level}</Badge>
+                  <Badge variant="secondary">Level {program.skill_level}</Badge>
                   {program.duration_weeks && (
                     <Badge variant="outline"><Clock className="h-3 w-3 mr-1" />{program.duration_weeks}w</Badge>
                   )}
@@ -152,19 +161,27 @@ const CoachPrograms = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Skill Level</Label>
-                <Select value={skillLevel} onValueChange={setSkillLevel}>
+                <Label>Difficulty Level</Label>
+                <Select value={difficultyLevel} onValueChange={setDifficultyLevel}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SKILL_LEVELS.map((l) => (
-                      <SelectItem key={l} value={l} className="capitalize">{l}</SelectItem>
+                    {DIFFICULTY_LEVELS.map((l) => (
+                      <SelectItem key={l} value={String(l)}>Level {l}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
                 <Label>Duration (weeks)</Label>
-                <Input type="number" min={1} placeholder="e.g. 8" value={durationWeeks} onChange={(e) => setDurationWeeks(e.target.value)} />
+                <Select value={durationWeeks || "na"} onValueChange={(v) => setDurationWeeks(v === "na" ? "" : v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="na">N/A</SelectItem>
+                    {[1,2,3,4,5,6,8,10,12,16,20,24].map((w) => (
+                      <SelectItem key={w} value={String(w)}>{w} weeks</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-1">

@@ -14,10 +14,17 @@ import CoachDashboard from "./pages/coach/CoachDashboard";
 import CoachPrograms from "./pages/coach/CoachPrograms";
 import ProgramEditor from "./pages/coach/ProgramEditor";
 import CoachAthletes from "./pages/coach/CoachAthletes";
+import CoachTeams from "./pages/coach/CoachTeams";
 import CoachSchedule from "./pages/coach/CoachSchedule";
+import CoachBilling from "./pages/coach/CoachBilling";
 import SessionLogger from "./pages/coach/SessionLogger";
+import CoachDrills from "./pages/coach/CoachDrills";
+import SpotlightStudio from "./pages/coach/SpotlightStudio";
+import SpotlightCallback from "./pages/coach/SpotlightCallback";
 import ParentDashboard from "./pages/parent/ParentDashboard";
 import AthleteDashboard from "./pages/athlete/AthleteDashboard";
+import AthleteSchedule from "./pages/athlete/AthleteSchedule";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,20 +54,39 @@ const App = () => (
             <Route path="/coach/athletes" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachAthletes /></ProtectedRoute>
             } />
+            <Route path="/coach/teams" element={
+              <ProtectedRoute allowedRoles={["coach"]}><CoachTeams /></ProtectedRoute>
+            } />
             <Route path="/coach/schedule" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachSchedule /></ProtectedRoute>
             } />
             <Route path="/coach/log-session" element={
               <ProtectedRoute allowedRoles={["coach"]}><SessionLogger /></ProtectedRoute>
             } />
+            <Route path="/coach/billing" element={
+              <ProtectedRoute allowedRoles={["coach"]}><CoachBilling /></ProtectedRoute>
+            } />
+            <Route path="/coach/drills" element={
+              <ProtectedRoute allowedRoles={["coach"]}><CoachDrills /></ProtectedRoute>
+            } />
+            <Route path="/coach/spotlight" element={
+              <ProtectedRoute allowedRoles={["coach"]}><SpotlightStudio /></ProtectedRoute>
+            } />
+            <Route path="/coach/spotlight/callback" element={<SpotlightCallback />} />
             <Route path="/coach/*" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachDashboard /></ProtectedRoute>
             } />
             <Route path="/parent/*" element={
               <ProtectedRoute allowedRoles={["parent"]}><ParentDashboard /></ProtectedRoute>
             } />
+            <Route path="/athlete/schedule" element={
+              <ProtectedRoute allowedRoles={["athlete"]}><AthleteSchedule /></ProtectedRoute>
+            } />
             <Route path="/athlete/*" element={
               <ProtectedRoute allowedRoles={["athlete"]}><AthleteDashboard /></ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute><Settings /></ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />
           </Routes>
