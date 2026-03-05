@@ -50,11 +50,20 @@ const Signup = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [parentToken, setParentToken] = useState<string | null>(null);
+  const [coachToken, setCoachToken] = useState<string | null>(null);
 
   useEffect(() => {
     const inviteEmail = searchParams.get("email");
     if (inviteEmail) {
       setEmail(inviteEmail);
+      setSelectedRole("athlete");
+      setStep(2);
+      return;
+    }
+
+    const coachTok = searchParams.get("coach_token");
+    if (coachTok) {
+      setCoachToken(coachTok);
       setSelectedRole("athlete");
       setStep(2);
       return;
@@ -116,6 +125,22 @@ const Signup = () => {
       setLoading(false);
       toast({ title: "Signup failed", description: error.message, variant: "destructive" });
       return;
+    }
+
+    // If coach QR token present, link athlete to coach
+    if (coachToken) {
+      try {
+        const { data: { user: newUser } } = await supabase.auth.getUser();
+        if (newUser) {
+          await (supabase as any).from("coach_athlete_links").insert({
+            coach_user_id: coachToken,
+            athlete_user_id: newUser.id,
+            sport_id: null,
+          });
+        }
+      } catch {
+        // Non-fatal
+      }
     }
 
     // If parent invite token present, link parent to athlete

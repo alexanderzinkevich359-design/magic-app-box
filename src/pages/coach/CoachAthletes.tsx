@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, X, RefreshCw, Copy, Film, Activity, Sparkles, Lock, BookOpen, BookMarked, AlertTriangle, TrendingUp, ShieldAlert, UserPlus, MessageSquare } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, X, RefreshCw, Copy, Film, Activity, Sparkles, Lock, BookOpen, BookMarked, AlertTriangle, TrendingUp, ShieldAlert, UserPlus, MessageSquare, QrCode } from "lucide-react";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
 import AthleteVideoSubmissions from "@/components/AthleteVideoSubmissions";
@@ -139,6 +139,7 @@ const CoachAthletes = () => {
   }, [sportConfigs]);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showQRDialog, setShowQRDialog] = useState(false);
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [showAssignProgram, setShowAssignProgram] = useState(false);
@@ -808,15 +809,20 @@ const CoachAthletes = () => {
           <h1 className="text-3xl font-bold font-['Space_Grotesk']">Athletes</h1>
           <p className="text-muted-foreground mt-1">Manage your roster, goals, and at-home workouts</p>
         </div>
-        <Button onClick={() => {
-          if (athletes.length >= athleteLimit) {
-            setShowUpgradeModal(true);
-            return;
-          }
-          setShowAddDialog(true);
-        }}>
-          <Mail className="h-4 w-4 mr-2" /> Invite Athlete
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowQRDialog(true)}>
+            <QrCode className="h-4 w-4 mr-2" /> Share QR
+          </Button>
+          <Button onClick={() => {
+            if (athletes.length >= athleteLimit) {
+              setShowUpgradeModal(true);
+              return;
+            }
+            setShowAddDialog(true);
+          }}>
+            <Mail className="h-4 w-4 mr-2" /> Invite Athlete
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -943,6 +949,52 @@ const CoachAthletes = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* QR Code Invite Dialog */}
+      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle className="font-['Space_Grotesk']">Invite Athletes via QR Code</DialogTitle>
+            <DialogDescription>
+              Athletes scan this code to create an account and join your roster instantly.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-2">
+            <div className="rounded-xl border bg-white p-3">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/signup?coach_token=${user?.id}`)}`}
+                alt="Invite QR Code"
+                width={200}
+                height={200}
+                className="rounded"
+              />
+            </div>
+            <div className="w-full space-y-2">
+              <p className="text-xs text-muted-foreground">Or share the link directly:</p>
+              <div className="flex gap-2">
+                <Input
+                  readOnly
+                  value={`${window.location.origin}/signup?coach_token=${user?.id}`}
+                  className="text-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/signup?coach_token=${user?.id}`);
+                    toast({ title: "Link copied!" });
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Athletes will be automatically added to your roster when they sign up.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Invite Athlete Dialog */}
       <Dialog open={showAddDialog} onOpenChange={(open) => !open && resetAddForm()}>
