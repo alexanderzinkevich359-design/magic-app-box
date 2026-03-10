@@ -268,14 +268,21 @@ const CoachSchedule = () => {
 
   const upcomingSessions = useMemo(() => {
     const cutoff = addDays(today, 14);
-    return schedule
-      .filter((e) => {
-        const d = parseISO(e.scheduled_date);
-        return !isBefore(d, today) && isBefore(d, cutoff);
-      })
-      .slice(0, 10);
+    const filtered = schedule.filter((e) => {
+      const d = parseISO(e.scheduled_date);
+      return !isBefore(d, today) && isBefore(d, cutoff);
+    });
+    // Deduplicate team sessions — keep one representative per group
+    const seen = new Set<string>();
+    return filtered.filter((e) => {
+      const key = `${e.scheduled_date}|${e.title}|${e.start_time}|${e.color}|${e.status}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 10);
   }, [schedule, today]);
 
+  // Raw map (used for cancel/restore logic that needs per-athlete rows)
   const scheduleByDate = useMemo(() => {
     const map: Record<string, ScheduleEntry[]> = {};
     schedule.forEach((entry) => {
@@ -283,6 +290,31 @@ const CoachSchedule = () => {
       map[entry.scheduled_date].push(entry);
     });
     return map;
+  }, [schedule]);
+
+  // Deduplicated: same (title, start_time, color, status) on same date → one chip
+  const scheduleByDateDeduped = useMemo(() => {
+    const map: Record<string, ScheduleEntry[]> = {};
+    schedule.forEach((entry) => {
+      if (!map[entry.scheduled_date]) map[entry.scheduled_date] = [];
+      const key = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+      if (!map[entry.scheduled_date].some(
+        (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === key
+      )) {
+        map[entry.scheduled_date].push(entry);
+      }
+    });
+    return map;
+  }, [schedule]);
+
+  // How many athletes share each (date|title|start_time|color|status) group
+  const teamGroupCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    schedule.forEach((entry) => {
+      const key = `${entry.scheduled_date}|${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
   }, [schedule]);
 
   const days          = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -626,7 +658,7 @@ const CoachSchedule = () => {
                   ))}
                   {days.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
-                    const entries = scheduleByDate[dateKey] || [];
+                    const entries = scheduleByDateDeduped[dateKey] || [];
                     const todayDay = isToday(day);
                     return (
                       <div
@@ -740,7 +772,15 @@ const CoachSchedule = () => {
                         {format(parseISO(entry.scheduled_date), "EEE, MMM d")}
                         {entry.start_time && ` · ${entry.start_time.slice(0, 5)}`}
                       </p>
-                      <p className="text-[10px] text-muted-foreground pl-4">{getAthleteName(entry.athlete_id)}</p>
+                      <p className="text-[10px] text-muted-foreground pl-4">
+                        {(() => {
+                          const key = `${entry.scheduled_date}|${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+                          const count = teamGroupCounts[key] || 1;
+                          return count > 1
+                            ? `Team · ${count} athletes`
+                            : getAthleteName(entry.athlete_id);
+                        })()}
+                      </p>
                     </button>
                   ))}
                 </div>
