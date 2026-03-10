@@ -23,6 +23,7 @@ type PracticeSession = {
   end_time: string | null;
   notes: string | null;
   color: string | null;
+  status: string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,7 +61,7 @@ const AthleteSchedule = () => {
       if (!user) return [];
       const { data, error } = await supabase
         .from("coach_schedule")
-        .select("id, title, scheduled_date, start_time, end_time, notes, color")
+        .select("id, title, scheduled_date, start_time, end_time, notes, color, status")
         .eq("athlete_id", user.id)
         .gte("scheduled_date", format(monthStart, "yyyy-MM-dd"))
         .lte("scheduled_date", format(monthEnd, "yyyy-MM-dd"))
@@ -158,12 +159,17 @@ const AthleteSchedule = () => {
                             <div
                               key={p.id}
                               onClick={() => setSelectedPractice(p)}
-                              className={`text-[10px] truncate rounded px-1 py-0.5 border cursor-pointer hover:opacity-80 ${getPracticeColor(p.color)}`}
-                              title={`${formatTime(p.start_time) ? formatTime(p.start_time) + " · " : ""}${p.title || "Practice"}`}
+                              className={`text-[10px] truncate rounded px-1 py-0.5 border cursor-pointer hover:opacity-80 ${
+                                p.status === "canceled"
+                                  ? "bg-secondary/30 border-border text-muted-foreground opacity-60 line-through"
+                                  : getPracticeColor(p.color)
+                              }`}
+                              title={`${p.status === "canceled" ? "CANCELED: " : ""}${formatTime(p.start_time) ? formatTime(p.start_time) + " · " : ""}${p.title || "Practice"}`}
                             >
-                              {formatTime(p.start_time) && (
-                                <span className="font-bold">{formatTime(p.start_time)} </span>
-                              )}
+                              {p.status === "canceled"
+                                ? <span className="not-italic">✕ </span>
+                                : formatTime(p.start_time) && <span className="font-bold">{formatTime(p.start_time)} </span>
+                              }
                               {p.title || "Practice"}
                             </div>
                           ))}
@@ -197,18 +203,22 @@ const AthleteSchedule = () => {
                     <button
                       key={p.id}
                       onClick={() => setSelectedPractice(p)}
-                      className="w-full text-left rounded-lg border p-2.5 hover:bg-secondary/50 transition-colors"
+                      className={`w-full text-left rounded-lg border p-2.5 hover:bg-secondary/50 transition-colors ${p.status === "canceled" ? "opacity-60" : ""}`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${getPracticeColor(p.color).split(" ")[0]}`} />
-                        <p className="text-xs font-medium truncate">{p.title || "Practice"}</p>
+                        {p.status === "canceled" ? (
+                          <span className="text-[10px] font-semibold text-red-400 bg-red-400/10 border border-red-400/20 rounded px-1.5 py-0.5 shrink-0">CANCELED</span>
+                        ) : (
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${getPracticeColor(p.color).split(" ")[0]}`} />
+                        )}
+                        <p className={`text-xs font-medium truncate ${p.status === "canceled" ? "line-through text-muted-foreground" : ""}`}>{p.title || "Practice"}</p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                         {format(parseISO(p.scheduled_date), "EEE, MMM d")}
-                        {formatTime(p.start_time) && (
+                        {p.status !== "canceled" && formatTime(p.start_time) && (
                           <span className="font-semibold text-foreground"> · {formatTime(p.start_time)}</span>
                         )}
-                        {formatTime(p.end_time) && (
+                        {p.status !== "canceled" && formatTime(p.end_time) && (
                           <span> – {formatTime(p.end_time)}</span>
                         )}
                       </p>
@@ -225,7 +235,12 @@ const AthleteSchedule = () => {
       <Dialog open={!!selectedPractice} onOpenChange={(o) => !o && setSelectedPractice(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-['Space_Grotesk']">{selectedPractice?.title || "Practice"}</DialogTitle>
+            <DialogTitle className="font-['Space_Grotesk'] flex items-center gap-2">
+              {selectedPractice?.status === "canceled" && (
+                <span className="text-xs font-semibold text-red-400 bg-red-400/10 border border-red-400/20 rounded px-1.5 py-0.5">CANCELED</span>
+              )}
+              <span className={selectedPractice?.status === "canceled" ? "line-through text-muted-foreground" : ""}>{selectedPractice?.title || "Practice"}</span>
+            </DialogTitle>
           </DialogHeader>
           {selectedPractice && (
             <div className="space-y-3 text-sm">

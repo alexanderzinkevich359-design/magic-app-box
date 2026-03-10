@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Clock, Users, Layers, SplitSquareHorizontal, ClipboardList } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Clock, Users, Layers, SplitSquareHorizontal, ClipboardList, XCircle, RotateCcw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -63,6 +63,7 @@ type ScheduleEntry = {
   end_time: string | null;
   notes: string | null;
   color: string | null;
+  status: string;
 };
 
 type AthleteOption = {
@@ -114,6 +115,9 @@ const CoachSchedule = () => {
   // Recurrence: day-of-week + weeks
   const [formDays, setFormDays]     = useState<number[]>([]);
   const [formWeeks, setFormWeeks]   = useState(1);
+
+  // Delete confirmation (two-step to prevent accidents)
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   // Position split (Group B)
   const [formSplitEnabled, setFormSplitEnabled] = useState(false);
@@ -312,6 +316,7 @@ const CoachSchedule = () => {
     setFormGroupBAthleteIds([]);
     setFormGroupBTitle("");
     setEditEntry(null);
+    setDeleteConfirm(false);
   };
 
   // Auto-open form when navigated from Drills page (?date=&title=)
@@ -476,6 +481,34 @@ const CoachSchedule = () => {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const cancelMut = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("coach_schedule").update({ status: "canceled" }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
+      setShowForm(false);
+      resetForm();
+      toast({ title: "Practice canceled", description: "Athletes will see it as canceled." });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const restoreMut = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("coach_schedule").update({ status: "active" }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
+      setShowForm(false);
+      resetForm();
+      toast({ title: "Practice restored!" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const [dragEntry, setDragEntry] = useState<ScheduleEntry | null>(null);
   const moveMut = useMutation({
     mutationFn: async ({ id, newDate }: { id: string; newDate: string }) => {
@@ -563,13 +596,20 @@ const CoachSchedule = () => {
                           {entries.slice(0, 3).map((entry) => (
                             <div
                               key={entry.id}
-                              draggable
-                              onDragStart={(e) => { e.stopPropagation(); setDragEntry(entry); }}
+                              draggable={entry.status !== "canceled"}
+                              onDragStart={(e) => { e.stopPropagation(); if (entry.status !== "canceled") setDragEntry(entry); }}
                               onClick={(e) => { e.stopPropagation(); openEditEntry(entry); }}
-                              className={`text-[10px] sm:text-xs truncate rounded px-1 py-0.5 border cursor-grab active:cursor-grabbing ${getColorClass(entry.color || "default")}`}
-                              title={`${entry.title || getAthleteName(entry.athlete_id)} ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
+                              className={`text-[10px] sm:text-xs truncate rounded px-1 py-0.5 border cursor-pointer ${
+                                entry.status === "canceled"
+                                  ? "bg-secondary/30 border-border text-muted-foreground opacity-60 line-through"
+                                  : `cursor-grab active:cursor-grabbing ${getColorClass(entry.color || "default")}`
+                              }`}
+                              title={`${entry.status === "canceled" ? "CANCELED: " : ""}${entry.title || getAthleteName(entry.athlete_id)} ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
                             >
-                              {entry.start_time && <span className="font-medium">{entry.start_time.slice(0, 5)} </span>}
+                              {entry.status === "canceled"
+                                ? <span className="not-italic">✕ </span>
+                                : entry.start_time && <span className="font-medium">{entry.start_time.slice(0, 5)} </span>
+                              }
                               {entry.title || getAthleteName(entry.athlete_id)}
                             </div>
                           ))}
@@ -1058,18 +1098,57 @@ const CoachSchedule = () => {
 
           <DialogFooter className="flex gap-2 sm:gap-0">
             {editEntry && (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => deleteMut.mutate(editEntry.id)}
-                disabled={deleteMut.isPending}
-                className="mr-auto"
-              >
-                {deleteMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
-                Delete
-              </Button>
+              <div className="mr-auto flex items-center gap-2">
+                {deleteConfirm ? (
+                  <>
+                    <span className="text-xs text-destructive">Delete permanently?</span>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteMut.mutate(editEntry.id)}
+                      disabled={deleteMut.isPending}
+                    >
+                      {deleteMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Yes, delete"}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(false)}>No</Button>
+                  </>
+                ) : (
+                  <>
+                    {editEntry.status === "canceled" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-emerald-400 border-emerald-400/40 hover:bg-emerald-400/10"
+                        onClick={() => restoreMut.mutate(editEntry.id)}
+                        disabled={restoreMut.isPending}
+                      >
+                        {restoreMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><RotateCcw className="h-3.5 w-3.5 mr-1" />Restore</>}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-orange-400 border-orange-400/40 hover:bg-orange-400/10"
+                        onClick={() => cancelMut.mutate(editEntry.id)}
+                        disabled={cancelMut.isPending}
+                      >
+                        {cancelMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="h-3.5 w-3.5 mr-1" />Cancel Practice</>}
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteConfirm(true)}
+                      title="Delete session"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </>
+                )}
+              </div>
             )}
-            <Button variant="outline" onClick={() => { setShowForm(false); resetForm(); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowForm(false); resetForm(); }}>Close</Button>
             <Button
               onClick={() => saveMut.mutate()}
               disabled={
