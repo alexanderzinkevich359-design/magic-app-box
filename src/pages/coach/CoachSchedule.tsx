@@ -333,6 +333,7 @@ const CoachSchedule = () => {
   }, [sportConfig, selectedTeam, inSeasonTeams]);
 
   const getAthleteName = (id: string) => athletes.find((a) => a.id === id)?.name || "Unknown";
+  const getTeamForAthlete = (athleteId: string) => teams.find((t) => t.memberIds.includes(athleteId)) ?? null;
 
   // Unique positions among currently selected athletes (for split labels)
   const positionsInRoster = useMemo(() => {
@@ -688,13 +689,13 @@ const CoachSchedule = () => {
                                   ? "bg-secondary/30 border-border text-muted-foreground opacity-60 line-through"
                                   : `cursor-grab active:cursor-grabbing ${getColorClass(entry.color || "default")}`
                               }`}
-                              title={`${entry.status === "canceled" ? "CANCELED: " : ""}${entry.title || getAthleteName(entry.athlete_id)} ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
+                              title={`${entry.status === "canceled" ? "CANCELED: " : ""}${entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"} ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
                             >
                               {entry.status === "canceled"
                                 ? <span className="not-italic">✕ </span>
                                 : entry.start_time && <span className="font-medium">{entry.start_time.slice(0, 5)} </span>
                               }
-                              {entry.title || getAthleteName(entry.athlete_id)}
+                              {entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"}
                             </div>
                           ))}
                           {entries.length > 3 && (
@@ -766,20 +767,14 @@ const CoachSchedule = () => {
                     >
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${getColorClass(entry.color || "default").split(" ")[0]}`} />
-                        <p className="text-xs font-medium truncate">{entry.title || getAthleteName(entry.athlete_id)}</p>
+                        <p className="text-xs font-medium truncate">{entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"}</p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                         {format(parseISO(entry.scheduled_date), "EEE, MMM d")}
                         {entry.start_time && ` · ${entry.start_time.slice(0, 5)}`}
                       </p>
                       <p className="text-[10px] text-muted-foreground pl-4">
-                        {(() => {
-                          const key = `${entry.scheduled_date}|${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
-                          const count = teamGroupCounts[key] || 1;
-                          return count > 1
-                            ? `Team · ${count} athletes`
-                            : getAthleteName(entry.athlete_id);
-                        })()}
+                        {getTeamForAthlete(entry.athlete_id)?.name ?? ""}
                       </p>
                     </button>
                   ))}
