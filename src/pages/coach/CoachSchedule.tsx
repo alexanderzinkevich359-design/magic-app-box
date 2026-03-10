@@ -53,18 +53,30 @@ const getColorClass = (color: string) => COLORS.find((c) => c.value === color)?.
 
 // ── Time helpers ───────────────────────────────────────────────────────────────
 
-const timeToAmPm = (t: string): "AM" | "PM" =>
-  !t ? "PM" : parseInt(t.split(":")[0]) >= 12 ? "PM" : "AM";
+const MINUTE_OPTIONS = ["00","05","10","15","20","25","30","35","40","45","50","55"];
 
-/** Shifts a HH:MM string to the target AM/PM. Falls back to `fallback` if empty. */
-const shiftAmPm = (t: string, target: "AM" | "PM", fallback: string): string => {
-  const base = t || fallback;
-  const parts = base.split(":");
-  let hour = parseInt(parts[0]);
-  const min = parts[1] || "00";
-  if (target === "AM" && hour >= 12) hour -= 12;
-  if (target === "PM" && hour < 12) hour += 12;
-  return `${String(hour).padStart(2, "0")}:${min}`;
+/** Parse a HH:MM 24-hour string into 12-hour parts for the picker. */
+const parseTimeParts = (t: string): { h: string; m: string; ampm: "AM" | "PM" } => {
+  if (!t) return { h: "", m: "00", ampm: "AM" };
+  const [hStr, mStr] = t.split(":");
+  let h = parseInt(hStr || "0");
+  const ampm: "AM" | "PM" = h >= 12 ? "PM" : "AM";
+  if (h === 0) h = 12;
+  else if (h > 12) h -= 12;
+  // Round minute to nearest 5
+  const raw = parseInt(mStr || "0");
+  const roundedM = String(Math.round(raw / 5) * 5).padStart(2, "0");
+  const m = MINUTE_OPTIONS.includes(roundedM) ? roundedM : "00";
+  return { h: String(h), m, ampm };
+};
+
+/** Build a HH:MM 24-hour string from 12-hour parts. */
+const buildTime = (h: string, m: string, ampm: "AM" | "PM"): string => {
+  if (!h) return "";
+  let hour = parseInt(h);
+  if (ampm === "AM" && hour === 12) hour = 0;
+  if (ampm === "PM" && hour !== 12) hour += 12;
+  return `${String(hour).padStart(2, "0")}:${m}`;
 };
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -933,30 +945,62 @@ const CoachSchedule = () => {
 
             {/* Time */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Start Time</Label>
-                <div className="flex gap-1.5">
-                  <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} className="flex-1 min-w-0" />
-                  <div className="flex rounded-md border text-xs overflow-hidden shrink-0">
-                    <button type="button" onClick={() => setFormStartTime(shiftAmPm(formStartTime, "AM", "09:00"))}
-                      className={`px-2 py-1 transition-colors ${timeToAmPm(formStartTime) === "AM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>AM</button>
-                    <button type="button" onClick={() => setFormStartTime(shiftAmPm(formStartTime, "PM", "15:00"))}
-                      className={`px-2 py-1 border-l transition-colors ${timeToAmPm(formStartTime) === "PM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>PM</button>
+              {(["start", "end"] as const).map((which) => {
+                const val = which === "start" ? formStartTime : formEndTime;
+                const set = which === "start" ? setFormStartTime : setFormEndTime;
+                const defaultH = which === "start" ? "9" : "11";
+                const defaultAmpm: "AM" | "PM" = which === "start" ? "AM" : "AM";
+                const { h, m, ampm } = parseTimeParts(val);
+                return (
+                  <div key={which} className="space-y-2">
+                    <Label>{which === "start" ? "Start Time" : "End Time"}</Label>
+                    <div className="flex items-center gap-1">
+                      {/* Hour */}
+                      <Select
+                        value={h}
+                        onValueChange={(v) => set(buildTime(v, m || "00", ampm))}
+                      >
+                        <SelectTrigger className="w-14 px-2 text-center">
+                          <SelectValue placeholder="--" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-muted-foreground font-semibold text-sm">:</span>
+                      {/* Minute */}
+                      <Select
+                        value={m}
+                        onValueChange={(v) => set(buildTime(h || defaultH, v, ampm))}
+                      >
+                        <SelectTrigger className="w-14 px-2 text-center">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MINUTE_OPTIONS.map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {/* AM/PM */}
+                      <div className="flex rounded-md border text-xs overflow-hidden ml-0.5">
+                        <button
+                          type="button"
+                          onClick={() => set(buildTime(h || defaultH, m || "00", "AM"))}
+                          className={`px-2.5 py-1.5 transition-colors ${ampm === "AM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}
+                        >AM</button>
+                        <button
+                          type="button"
+                          onClick={() => set(buildTime(h || defaultH, m || "00", "PM"))}
+                          className={`px-2.5 py-1.5 border-l transition-colors ${ampm === "PM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}
+                        >PM</button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>End Time</Label>
-                <div className="flex gap-1.5">
-                  <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="flex-1 min-w-0" />
-                  <div className="flex rounded-md border text-xs overflow-hidden shrink-0">
-                    <button type="button" onClick={() => setFormEndTime(shiftAmPm(formEndTime, "AM", "11:00"))}
-                      className={`px-2 py-1 transition-colors ${timeToAmPm(formEndTime) === "AM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>AM</button>
-                    <button type="button" onClick={() => setFormEndTime(shiftAmPm(formEndTime, "PM", "17:00"))}
-                      className={`px-2 py-1 border-l transition-colors ${timeToAmPm(formEndTime) === "PM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>PM</button>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
 
             {/* Scheduling mode: Individual vs Team */}
