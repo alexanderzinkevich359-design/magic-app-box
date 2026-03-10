@@ -34,6 +34,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // getSession() reads from storage and is the authoritative initial check.
+    // Only clear loading once we have a definitive answer from storage.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchRoleAndProfile(session.user.id);
+      }
+      setLoading(false);
+    });
+
+    // onAuthStateChange handles sign-in/sign-out events after initial load.
+    // It does NOT control the loading flag to avoid the race condition where
+    // it fires with null before localStorage has been read.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -43,16 +57,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(null);
         setProfile(null);
       }
-      setLoading(false);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchRoleAndProfile(session.user.id);
-      }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
