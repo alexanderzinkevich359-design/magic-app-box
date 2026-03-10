@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Clock, Users, Layers, SplitSquareHorizontal, ClipboardList, XCircle, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Clock, Users, Layers, SplitSquareHorizontal, ClipboardList, XCircle, RotateCcw, Eraser } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -118,6 +118,10 @@ const CoachSchedule = () => {
 
   // Delete confirmation (two-step to prevent accidents)
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  // Mass clear dialog
+  const [showClearDialog, setShowClearDialog] = useState(false);
+  const [clearRange, setClearRange] = useState<"month" | "future" | "all">("month");
 
   // Position split (Group B)
   const [formSplitEnabled, setFormSplitEnabled] = useState(false);
@@ -509,6 +513,28 @@ const CoachSchedule = () => {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const clearMut = useMutation({
+    mutationFn: async (range: "month" | "future" | "all") => {
+      if (!user) return;
+      let query = supabase.from("coach_schedule").delete().eq("coach_id", user.id);
+      if (range === "month") {
+        query = query
+          .gte("scheduled_date", format(monthStart, "yyyy-MM-dd"))
+          .lte("scheduled_date", format(monthEnd, "yyyy-MM-dd"));
+      } else if (range === "future") {
+        query = query.gte("scheduled_date", format(today, "yyyy-MM-dd"));
+      }
+      const { error } = await query;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
+      setShowClearDialog(false);
+      toast({ title: "Sessions cleared." });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const [dragEntry, setDragEntry] = useState<ScheduleEntry | null>(null);
   const moveMut = useMutation({
     mutationFn: async ({ id, newDate }: { id: string; newDate: string }) => {
@@ -530,9 +556,19 @@ const CoachSchedule = () => {
           <h1 className="text-3xl font-bold font-['Space_Grotesk']">Schedule</h1>
           <p className="text-muted-foreground mt-1">Click any day to add a session. Drag to reschedule.</p>
         </div>
-        <Button onClick={() => { resetForm(); setFormDate(format(new Date(), "yyyy-MM-dd")); setShowForm(true); }}>
-          <Plus className="h-4 w-4 mr-2" /> Schedule Session
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive hover:border-destructive/50"
+            onClick={() => { setClearRange("month"); setShowClearDialog(true); }}
+          >
+            <Eraser className="h-4 w-4 mr-1.5" /> Clear
+          </Button>
+          <Button onClick={() => { resetForm(); setFormDate(format(new Date(), "yyyy-MM-dd")); setShowForm(true); }}>
+            <Plus className="h-4 w-4 mr-2" /> Schedule Session
+          </Button>
+        </div>
       </div>
 
       {/* Month nav */}
@@ -1159,6 +1195,50 @@ const CoachSchedule = () => {
             >
               {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               {editEntry ? "Update" : "Schedule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ── Mass clear dialog ── */}
+      <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-['Space_Grotesk'] text-destructive flex items-center gap-2">
+              <Eraser className="h-5 w-5" /> Clear Sessions
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Choose which sessions to permanently delete:</p>
+            <div className="space-y-2">
+              {([
+                { value: "month", label: `This month (${format(monthStart, "MMMM yyyy")})`, desc: "Only sessions in the current calendar view" },
+                { value: "future", label: "All future sessions", desc: "Today and all upcoming sessions" },
+                { value: "all", label: "Everything", desc: "All sessions ever — cannot be undone" },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setClearRange(opt.value)}
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    clearRange === opt.value
+                      ? "border-destructive bg-destructive/10"
+                      : "border-border hover:bg-secondary/50"
+                  }`}
+                >
+                  <p className={`text-sm font-medium ${clearRange === opt.value ? "text-destructive" : ""}`}>{opt.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClearDialog(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => clearMut.mutate(clearRange)}
+              disabled={clearMut.isPending}
+            >
+              {clearMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete {clearRange === "month" ? "This Month" : clearRange === "future" ? "All Future" : "Everything"}
             </Button>
           </DialogFooter>
         </DialogContent>
