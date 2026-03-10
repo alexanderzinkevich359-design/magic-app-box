@@ -51,6 +51,22 @@ const DAYS_OF_WEEK = [
 
 const getColorClass = (color: string) => COLORS.find((c) => c.value === color)?.class || COLORS[0].class;
 
+// ── Time helpers ───────────────────────────────────────────────────────────────
+
+const timeToAmPm = (t: string): "AM" | "PM" =>
+  !t ? "PM" : parseInt(t.split(":")[0]) >= 12 ? "PM" : "AM";
+
+/** Shifts a HH:MM string to the target AM/PM. Falls back to `fallback` if empty. */
+const shiftAmPm = (t: string, target: "AM" | "PM", fallback: string): string => {
+  const base = t || fallback;
+  const parts = base.split(":");
+  let hour = parseInt(parts[0]);
+  const min = parts[1] || "00";
+  if (target === "AM" && hour >= 12) hour -= 12;
+  if (target === "PM" && hour < 12) hour += 12;
+  return `${String(hour).padStart(2, "0")}:${min}`;
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type ScheduleEntry = {
@@ -855,11 +871,27 @@ const CoachSchedule = () => {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Start Time</Label>
-                <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} />
+                <div className="flex gap-1.5">
+                  <Input type="time" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} className="flex-1 min-w-0" />
+                  <div className="flex rounded-md border text-xs overflow-hidden shrink-0">
+                    <button type="button" onClick={() => setFormStartTime(shiftAmPm(formStartTime, "AM", "09:00"))}
+                      className={`px-2 py-1 transition-colors ${timeToAmPm(formStartTime) === "AM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>AM</button>
+                    <button type="button" onClick={() => setFormStartTime(shiftAmPm(formStartTime, "PM", "15:00"))}
+                      className={`px-2 py-1 border-l transition-colors ${timeToAmPm(formStartTime) === "PM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>PM</button>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>End Time</Label>
-                <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} />
+                <div className="flex gap-1.5">
+                  <Input type="time" value={formEndTime} onChange={(e) => setFormEndTime(e.target.value)} className="flex-1 min-w-0" />
+                  <div className="flex rounded-md border text-xs overflow-hidden shrink-0">
+                    <button type="button" onClick={() => setFormEndTime(shiftAmPm(formEndTime, "AM", "11:00"))}
+                      className={`px-2 py-1 transition-colors ${timeToAmPm(formEndTime) === "AM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>AM</button>
+                    <button type="button" onClick={() => setFormEndTime(shiftAmPm(formEndTime, "PM", "17:00"))}
+                      className={`px-2 py-1 border-l transition-colors ${timeToAmPm(formEndTime) === "PM" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}>PM</button>
+                  </div>
+                </div>
               </div>
             </div>
 
