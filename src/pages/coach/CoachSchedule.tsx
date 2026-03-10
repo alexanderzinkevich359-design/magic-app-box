@@ -957,7 +957,9 @@ const CoachSchedule = () => {
                 const set = which === "start" ? setFormStartTime : setFormEndTime;
                 const defaultH = which === "start" ? "9" : "11";
                 const defaultAmpm: "AM" | "PM" = which === "start" ? "AM" : "AM";
-                const { h, m, ampm } = parseTimeParts(val);
+                const { h, m, ampm: rawAmpm } = parseTimeParts(val);
+                // Only highlight AM/PM when a time has actually been selected
+                const ampm = h ? rawAmpm : null;
                 return (
                   <div key={which} className="space-y-2">
                     <Label>{which === "start" ? "Start Time" : "End Time"}</Label>
@@ -965,7 +967,7 @@ const CoachSchedule = () => {
                       {/* Hour */}
                       <Select
                         value={h}
-                        onValueChange={(v) => set(buildTime(v, m || "00", ampm))}
+                        onValueChange={(v) => set(buildTime(v, m || "00", rawAmpm))}
                       >
                         <SelectTrigger className="w-14 px-2 text-center">
                           <SelectValue placeholder="--" />
@@ -980,7 +982,7 @@ const CoachSchedule = () => {
                       {/* Minute */}
                       <Select
                         value={m}
-                        onValueChange={(v) => set(buildTime(h || defaultH, v, ampm))}
+                        onValueChange={(v) => set(buildTime(h || defaultH, v, rawAmpm))}
                       >
                         <SelectTrigger className="w-14 px-2 text-center">
                           <SelectValue />
