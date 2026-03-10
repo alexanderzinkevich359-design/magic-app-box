@@ -348,6 +348,14 @@ const CoachSchedule = () => {
   const getAthleteName = (id: string) => athletes.find((a) => a.id === id)?.name || "Unknown";
   const getTeamForAthlete = (athleteId: string) => teams.find((t) => t.memberIds.includes(athleteId)) ?? null;
 
+  /** Return all row IDs that belong to the same session group as `entry`. */
+  const getGroupIds = (entry: ScheduleEntry): string[] => {
+    const key = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+    return (scheduleByDate[entry.scheduled_date] || [])
+      .filter((e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === key)
+      .map((e) => e.id);
+  };
+
   // Unique positions among currently selected athletes (for split labels)
   const positionsInRoster = useMemo(() => {
     const positions = athletes.map((a) => a.sport_position).filter(Boolean) as string[];
@@ -570,8 +578,8 @@ const CoachSchedule = () => {
   });
 
   const deleteMut = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("coach_schedule").delete().eq("id", id);
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("coach_schedule").delete().in("id", ids);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -583,8 +591,8 @@ const CoachSchedule = () => {
   });
 
   const cancelMut = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("coach_schedule").update({ status: "canceled" }).eq("id", id);
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("coach_schedule").update({ status: "canceled" }).in("id", ids);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -597,8 +605,8 @@ const CoachSchedule = () => {
   });
 
   const restoreMut = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("coach_schedule").update({ status: "active" }).eq("id", id);
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("coach_schedule").update({ status: "active" }).in("id", ids);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -1346,7 +1354,7 @@ const CoachSchedule = () => {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => deleteMut.mutate(editEntry.id)}
+                      onClick={() => deleteMut.mutate(getGroupIds(editEntry))}
                       disabled={deleteMut.isPending}
                     >
                       {deleteMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Yes, delete"}
@@ -1360,7 +1368,7 @@ const CoachSchedule = () => {
                         variant="outline"
                         size="sm"
                         className="text-emerald-400 border-emerald-400/40 hover:bg-emerald-400/10"
-                        onClick={() => restoreMut.mutate(editEntry.id)}
+                        onClick={() => restoreMut.mutate(getGroupIds(editEntry))}
                         disabled={restoreMut.isPending}
                       >
                         {restoreMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><RotateCcw className="h-3.5 w-3.5 mr-1" />Restore</>}
@@ -1370,7 +1378,7 @@ const CoachSchedule = () => {
                         variant="outline"
                         size="sm"
                         className="text-orange-400 border-orange-400/40 hover:bg-orange-400/10"
-                        onClick={() => cancelMut.mutate(editEntry.id)}
+                        onClick={() => cancelMut.mutate(getGroupIds(editEntry))}
                         disabled={cancelMut.isPending}
                       >
                         {cancelMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="h-3.5 w-3.5 mr-1" />Cancel Practice</>}
