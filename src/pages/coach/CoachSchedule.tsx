@@ -338,8 +338,8 @@ const CoachSchedule = () => {
     setEditEntry(entry);
     setFormAthleteIds([entry.athlete_id]);
     setFormTitle(entry.title);
-    setFormStartTime(entry.start_time || "");
-    setFormEndTime(entry.end_time || "");
+    setFormStartTime(entry.start_time?.slice(0, 5) || "");
+    setFormEndTime(entry.end_time?.slice(0, 5) || "");
     setFormNotes(entry.notes || "");
     setFormColor(entry.color || "default");
     setFormDate(entry.scheduled_date);
