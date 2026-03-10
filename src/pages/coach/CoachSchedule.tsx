@@ -394,7 +394,12 @@ const CoachSchedule = () => {
   const openEditEntry = (entry: ScheduleEntry) => {
     resetForm();
     setEditEntry(entry);
-    setFormAthleteIds([entry.athlete_id]);
+    // Find all athletes in the same group (same date + title + time + color + status)
+    const groupKey = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+    const groupEntries = (scheduleByDate[entry.scheduled_date] || []).filter(
+      (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === groupKey
+    );
+    setFormAthleteIds(groupEntries.map((e) => e.athlete_id));
     setFormTitle(entry.title);
     setFormStartTime(entry.start_time?.slice(0, 5) || "");
     setFormEndTime(entry.end_time?.slice(0, 5) || "");
@@ -452,16 +457,40 @@ const CoachSchedule = () => {
       const dates = buildDates(formDate);
 
       if (editEntry) {
-        const { error } = await supabase.from("coach_schedule").update({
-          athlete_id: formAthleteIds[0],
-          title: formTitle || getAthleteName(formAthleteIds[0]),
+        // Resolve the full group (all athlete rows for this session)
+        const origKey = `${editEntry.title}|${editEntry.start_time}|${editEntry.color}|${editEntry.status}`;
+        const groupEntries = (scheduleByDate[editEntry.scheduled_date] || []).filter(
+          (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === origKey
+        );
+        const currentAthleteIds = groupEntries.map((e) => e.athlete_id);
+        const updates = {
+          title: formTitle,
           scheduled_date: formDate,
           start_time: formStartTime || null,
           end_time: formEndTime || null,
           notes: formNotes || null,
           color: formColor,
-        }).eq("id", editEntry.id);
-        if (error) throw error;
+        };
+        // 1. Update all existing entries in the group
+        if (groupEntries.length > 0) {
+          const { error } = await supabase.from("coach_schedule")
+            .update(updates).in("id", groupEntries.map((e) => e.id));
+          if (error) throw error;
+        }
+        // 2. Insert rows for newly added athletes
+        const toAdd = formAthleteIds.filter((id) => !currentAthleteIds.includes(id));
+        if (toAdd.length > 0) {
+          const { error } = await supabase.from("coach_schedule").insert(
+            toAdd.map((athleteId) => ({ coach_id: user.id, athlete_id: athleteId, ...updates }))
+          );
+          if (error) throw error;
+        }
+        // 3. Delete rows for removed athletes
+        const toRemove = groupEntries.filter((e) => !formAthleteIds.includes(e.athlete_id)).map((e) => e.id);
+        if (toRemove.length > 0) {
+          const { error } = await supabase.from("coach_schedule").delete().in("id", toRemove);
+          if (error) throw error;
+        }
         return;
       }
 
