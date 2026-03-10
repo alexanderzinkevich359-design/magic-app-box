@@ -120,7 +120,8 @@ const isTeamInSeason = (t: TeamOption): boolean => {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 const CoachSchedule = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isTeamCoach = profile?.coach_type === "team";
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -366,7 +367,7 @@ const CoachSchedule = () => {
   // ── Form helpers ─────────────────────────────────────────────────────────────
 
   const resetForm = () => {
-    setFormMode("individual");
+    setFormMode(isTeamCoach ? "team" : "individual");
     setFormTeamId("");
     setFormAthleteIds([]);
     setFormTitle("");
@@ -506,14 +507,20 @@ const CoachSchedule = () => {
         return;
       }
 
-      if (formAthleteIds.length === 0 && formGroupBAthleteIds.length === 0) return;
+      // For team coaches, auto-fill athletes from selected team if not already set
+      const effectiveAthleteIds = (isTeamCoach && formAthleteIds.length === 0 && formTeamId)
+        ? (teams.find((t) => t.id === formTeamId)?.memberIds.filter((id) => athletes.some((a) => a.id === id)) ?? [])
+        : formAthleteIds;
+      if (effectiveAthleteIds !== formAthleteIds) setFormAthleteIds(effectiveAthleteIds);
+
+      if (effectiveAthleteIds.length === 0 && formGroupBAthleteIds.length === 0) return;
 
       const rows: object[] = [];
 
       // Group A
-      if (formAthleteIds.length > 0) {
+      if (effectiveAthleteIds.length > 0) {
         dates.forEach((date) => {
-          formAthleteIds.forEach((athleteId) => {
+          effectiveAthleteIds.forEach((athleteId) => {
             rows.push({
               coach_id: user.id,
               athlete_id: athleteId,
@@ -1007,26 +1014,29 @@ const CoachSchedule = () => {
             {!editEntry && (
               <div className="space-y-2">
                 <Label>Schedule for</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => { setFormMode("individual"); setFormTeamId(""); }}
-                    className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-                      formMode === "individual" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
-                    }`}
-                  >
-                    Individual athletes
-                  </button>
-                  <button
-                    onClick={() => setFormMode("team")}
-                    className={`rounded-lg border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
-                      formMode === "team" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
-                    }`}
-                  >
-                    <Users className="h-3.5 w-3.5" /> Team
-                  </button>
-                </div>
+                {/* Team coaches skip the toggle — they always schedule for a team */}
+                {!isTeamCoach && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setFormMode("individual"); setFormTeamId(""); }}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        formMode === "individual" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
+                      }`}
+                    >
+                      Individual athletes
+                    </button>
+                    <button
+                      onClick={() => setFormMode("team")}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
+                        formMode === "team" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
+                      }`}
+                    >
+                      <Users className="h-3.5 w-3.5" /> Team
+                    </button>
+                  </div>
+                )}
 
-                {formMode === "team" && (
+                {(formMode === "team" || isTeamCoach) && (
                   <Select value={formTeamId} onValueChange={setFormTeamId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a team" />
@@ -1042,7 +1052,7 @@ const CoachSchedule = () => {
                   </Select>
                 )}
 
-                {formMode === "team" && selectedTeam && isTeamInSeason(selectedTeam) && (
+                {(formMode === "team" || isTeamCoach) && selectedTeam && isTeamInSeason(selectedTeam) && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-400">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
                     This team is currently in season
@@ -1051,61 +1061,85 @@ const CoachSchedule = () => {
               </div>
             )}
 
-            {/* Athlete selection */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>
-                  {formSplitEnabled ? "Group A Athletes" : "Athletes"}
-                </Label>
-                {!editEntry && athletes.length > 1 && (
-                  <button
-                    onClick={selectAllAthletes}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    {formAthleteIds.length === athletes.length ? "Deselect all" : "Select all"}
-                  </button>
-                )}
+            {/* Athlete selection — team coaches see team badge; individual coaches see checkboxes */}
+            {isTeamCoach ? (
+              // Team coach: show which team this session covers (no individual names)
+              <div className="space-y-2">
+                <Label>Team</Label>
+                {(() => {
+                  const team = editEntry
+                    ? getTeamForAthlete(editEntry.athlete_id)
+                    : (selectedTeam ?? null);
+                  return team ? (
+                    <div className="flex items-center gap-2 rounded-lg border px-3 py-2.5 bg-secondary/30">
+                      <Users className="h-4 w-4 text-primary shrink-0" />
+                      <span className="text-sm font-medium">{team.name}</span>
+                      <span className="text-xs text-muted-foreground ml-1">· {team.memberIds.length} athletes</span>
+                      {isTeamInSeason(team) && (
+                        <span className="text-xs text-emerald-400 ml-auto">In Season</span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Select a team above to continue.</p>
+                  );
+                })()}
               </div>
-
-              {/* Position quick-select buttons (if any positions exist) */}
-              {positionsInRoster.length > 0 && !editEntry && (
-                <div className="flex flex-wrap gap-1.5">
-                  {positionsInRoster.map((pos) => (
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>
+                    {formSplitEnabled ? "Group A Athletes" : "Athletes"}
+                  </Label>
+                  {!editEntry && athletes.length > 1 && (
                     <button
-                      key={pos}
-                      onClick={() => quickSelectPositionGroup(pos)}
-                      className="text-xs rounded-full px-2 py-0.5 border border-dashed border-border hover:border-primary hover:text-primary transition-colors"
+                      onClick={selectAllAthletes}
+                      className="text-xs text-primary hover:underline"
                     >
-                      All {pos}s
+                      {formAthleteIds.length === athletes.length ? "Deselect all" : "Select all"}
                     </button>
-                  ))}
+                  )}
                 </div>
-              )}
 
-              <div className="rounded-lg border divide-y max-h-48 overflow-y-auto">
-                {athletes.map((a) => (
-                  <label key={a.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-secondary/30">
-                    <Checkbox
-                      checked={formAthleteIds.includes(a.id)}
-                      onCheckedChange={() => editEntry ? setFormAthleteIds([a.id]) : toggleAthlete(a.id, "A")}
-                    />
-                    <span className="text-sm flex-1">{a.name}</span>
-                    {a.sport_position && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">{a.sport_position}</Badge>
-                    )}
-                  </label>
-                ))}
-                {athletes.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-3">No athletes linked yet.</p>
+                {/* Position quick-select buttons */}
+                {positionsInRoster.length > 0 && !editEntry && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {positionsInRoster.map((pos) => (
+                      <button
+                        key={pos}
+                        onClick={() => quickSelectPositionGroup(pos)}
+                        className="text-xs rounded-full px-2 py-0.5 border border-dashed border-border hover:border-primary hover:text-primary transition-colors"
+                      >
+                        All {pos}s
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="rounded-lg border divide-y max-h-48 overflow-y-auto">
+                  {athletes.map((a) => (
+                    <label key={a.id} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-secondary/30">
+                      <Checkbox
+                        checked={formAthleteIds.includes(a.id)}
+                        onCheckedChange={() => editEntry ? setFormAthleteIds([a.id]) : toggleAthlete(a.id, "A")}
+                      />
+                      <span className="text-sm flex-1">{a.name}</span>
+                      {a.sport_position && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{a.sport_position}</Badge>
+                      )}
+                    </label>
+                  ))}
+                  {athletes.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-3">No athletes linked yet.</p>
+                  )}
+                </div>
+
+                {formAthleteIds.length > 1 && !formSplitEnabled && (
+                  <p className="text-xs text-muted-foreground">
+                    {formAthleteIds.length} athletes selected.
+                  </p>
                 )}
               </div>
-
-              {formAthleteIds.length > 1 && !formSplitEnabled && (
-                <p className="text-xs text-muted-foreground">
-                  {formAthleteIds.length} athletes selected.
-                </p>
-              )}
-            </div>
+            )}
 
             {/* Split practice toggle */}
             {!editEntry && (
@@ -1357,7 +1391,8 @@ const CoachSchedule = () => {
             <Button
               onClick={() => saveMut.mutate()}
               disabled={
-                (formAthleteIds.length === 0 && !(formSplitEnabled && formGroupBAthleteIds.length > 0)) ||
+                (!isTeamCoach && formAthleteIds.length === 0 && !(formSplitEnabled && formGroupBAthleteIds.length > 0)) ||
+                (isTeamCoach && !editEntry && !formTeamId) ||
                 !formDate ||
                 saveMut.isPending
               }
