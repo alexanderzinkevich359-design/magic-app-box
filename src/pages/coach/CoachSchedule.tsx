@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   addMonths, subMonths, isToday, addDays, parseISO, isBefore,
-  startOfDay, startOfWeek,
+  startOfDay, startOfWeek, differenceInWeeks,
 } from "date-fns";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -1063,29 +1063,58 @@ const CoachSchedule = () => {
                   )}
                 </div>
 
-                {formDays.length > 0 && (
-                  <div className="space-y-2">
-                    <Label>For how many weeks?</Label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min={1}
-                        max={12}
-                        value={formWeeks}
-                        onChange={(e) => setFormWeeks(Number(e.target.value))}
-                        className="flex-1"
-                      />
-                      <span className="text-sm font-medium w-16 text-right">
-                        {formWeeks} {formWeeks === 1 ? "week" : "weeks"}
-                      </span>
+                {formDays.length > 0 && (() => {
+                  const selTeam = teams.find((t) => t.id === formTeamId) ?? null;
+                  const seasonWeeks = selTeam?.season_end && formDate
+                    ? Math.max(1, differenceInWeeks(parseISO(selTeam.season_end), parseISO(formDate)) + 1)
+                    : null;
+                  const PRESETS = [
+                    { label: "4 wks", value: 4 },
+                    { label: "8 wks", value: 8 },
+                    { label: "12 wks", value: 12 },
+                    ...(seasonWeeks ? [{ label: `Full Season (${seasonWeeks}w)`, value: seasonWeeks }] : []),
+                  ];
+                  return (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>For how many weeks?</Label>
+                        <div className="flex gap-1.5">
+                          {PRESETS.map((p) => (
+                            <button
+                              key={p.label}
+                              onClick={() => setFormWeeks(p.value)}
+                              className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
+                                formWeeks === p.value
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "border-border hover:bg-secondary"
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={1}
+                          max={52}
+                          value={formWeeks}
+                          onChange={(e) => setFormWeeks(Number(e.target.value))}
+                          className="flex-1"
+                        />
+                        <span className="text-sm font-medium w-16 text-right">
+                          {formWeeks} {formWeeks === 1 ? "week" : "weeks"}
+                        </span>
+                      </div>
+                      {formDate && (
+                        <p className="text-xs text-muted-foreground">
+                          {buildDates(formDate).length} date(s) total
+                        </p>
+                      )}
                     </div>
-                    {formDate && (
-                      <p className="text-xs text-muted-foreground">
-                        {buildDates(formDate).length} date(s) total
-                      </p>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
