@@ -5,7 +5,7 @@ import { parseSportConfig } from "@/lib/sports/types";
 import type { SportConfig } from "@/lib/sports/types";
 
 const SPORT_SELECT =
-  "id, name, slug, icon, is_active, positions, skills, metrics_by_position, goal_templates_by_position, schedule_presets, session_config";
+  "id, name, slug, icon, is_active, positions, skills, metrics_by_position, goal_templates_by_position, schedule_presets, session_config, game_stat_groups";
 
 /** Fetch all active sport configs. staleTime: Infinity — static data, never refetched at runtime. */
 export function useAllSportConfigs() {

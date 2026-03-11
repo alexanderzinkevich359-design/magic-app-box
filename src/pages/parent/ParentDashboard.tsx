@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Target, FileDown, Loader2, StickyNote, CheckCircle2, Circle } from "lucide-react";
+import { Target, FileDown, Loader2, StickyNote, CheckCircle2, Circle, Trophy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { evalDerivedStat, formatBattingAvg } from "@/lib/sports/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   skill: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -141,7 +142,38 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 8. This week's support question
+  // 8. Recent games (last 5 competitive events)
+  const { data: recentGames = [] } = useQuery({
+    queryKey: ["parent-recent-games", athleteId],
+    queryFn: async () => {
+      if (!athleteId) return [];
+      // Get event_ids this athlete has stats for
+      const { data: statRows } = await (supabase as any)
+        .from("game_athlete_stats")
+        .select("event_id, stat_key, value")
+        .eq("athlete_id", athleteId);
+      if (!statRows?.length) return [];
+      const eventIds = [...new Set((statRows as any[]).map((r: any) => r.event_id))] as string[];
+      const { data: evs } = await (supabase as any)
+        .from("game_events")
+        .select("id, event_date, event_type, opponent, result, score_us, score_them")
+        .in("id", eventIds)
+        .in("event_type", ["game", "scrimmage", "tournament"])
+        .order("event_date", { ascending: false })
+        .limit(5);
+      // Build stats map per event
+      return (evs ?? []).map((ev: any) => {
+        const evStats: Record<string, number> = {};
+        for (const r of (statRows as any[]).filter((r: any) => r.event_id === ev.id)) {
+          evStats[r.stat_key] = r.value;
+        }
+        return { ...ev, stats: evStats };
+      });
+    },
+    enabled: !!athleteId,
+  });
+
+  // 10. This week's support question
   const { data: thisWeekQuestion } = useQuery({
     queryKey: ["parent-week-q", athleteId, weekStart],
     queryFn: async () => {
@@ -348,7 +380,55 @@ const ParentDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* 6. Weekly Support Question */}
+          {/* 6. Recent Games */}
+          {recentGames.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-['Space_Grotesk'] flex items-center gap-2">
+                  <Trophy className="h-4 w-4" /> Recent Games
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {recentGames.map((ev: any) => {
+                    const avg = evalDerivedStat("h/ab", ev.stats);
+                    return (
+                      <div key={ev.id} className="flex items-center gap-3 py-1.5 border-b last:border-b-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">
+                            {format(new Date(ev.event_date + "T12:00:00"), "MMM d")}
+                            {ev.opponent && <span className="text-muted-foreground font-normal"> vs. {ev.opponent}</span>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {avg !== null && (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              AVG {formatBattingAvg(avg)}
+                            </span>
+                          )}
+                          {ev.result && (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                ev.result === "W" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+                                ev.result === "L" ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                                "bg-gray-500/10 text-gray-400 border-gray-500/20"
+                              }`}
+                            >
+                              {ev.result}
+                              {ev.score_us != null && ev.score_them != null && ` ${ev.score_us}–${ev.score_them}`}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 7. Weekly Support Question */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-['Space_Grotesk']">Weekly Support Question</CardTitle>
@@ -393,7 +473,7 @@ const ParentDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* 7. PDF Report stub */}
+          {/* 8. PDF Report stub */}
           <Card>
             <CardContent className="p-5 flex items-center justify-between">
               <div>

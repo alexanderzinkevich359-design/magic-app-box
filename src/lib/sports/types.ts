@@ -1,3 +1,55 @@
+// ─── Game stat types ─────────────────────────────────────────────────────────
+
+export interface GameStatDef {
+  key: string;
+  label: string;
+  full: string;
+  sortOrder: number;
+  /** If set, only show this column when athlete position is in this list */
+  positions?: string[];
+}
+
+export interface DerivedStatDef {
+  key: string;
+  label: string;
+  formula: string;
+  precision: number;
+}
+
+/** `derived` key holds derived stat definitions; all other keys hold GameStatDef[] */
+export type GameStatGroups = { derived?: DerivedStatDef[] } & Record<string, GameStatDef[] | DerivedStatDef[]>;
+
+/** Returns stat group entries excluding the `derived` key */
+export function getStatGroupEntries(gsg: GameStatGroups): [string, GameStatDef[]][] {
+  return (Object.entries(gsg).filter(([k]) => k !== "derived") as [string, GameStatDef[]][]);
+}
+
+/**
+ * Safely evaluate a derived stat formula (e.g. "h/ab") given a stats map.
+ * Returns null when any operand is missing or result is non-finite.
+ */
+export function evalDerivedStat(formula: string, stats: Record<string, number>): number | null {
+  let expr = formula;
+  for (const [k, v] of Object.entries(stats)) {
+    expr = expr.replace(new RegExp(`\\b${k}\\b`, "g"), String(v));
+  }
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = new Function(`return (${expr})`)() as number;
+    return isFinite(result) ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Formats a batting average as ".333" instead of "0.333". Returns "---" for null. */
+export function formatBattingAvg(v: number | null): string {
+  if (v === null) return "---";
+  return v.toFixed(3).replace(/^0/, "");
+}
+
+// ─── Session / sport config types ────────────────────────────────────────────
+
 export interface SportMetric {
   type: string;
   label: string;
@@ -42,6 +94,7 @@ export interface SportConfig {
     offSeason: { label: string; color: string }[];
   };
   session_config: SportSessionConfig;
+  game_stat_groups: GameStatGroups;
 }
 
 /** Type-safe cast from raw Supabase row (JSONB cols come back as `unknown`) */
@@ -70,5 +123,6 @@ export function parseSportConfig(row: any): SportConfig {
       throwLabelByPosition: sc.throwLabelByPosition ?? {},
       repsLabelByPosition: sc.repsLabelByPosition ?? {},
     },
+    game_stat_groups: (row.game_stat_groups as GameStatGroups) ?? {},
   };
 }

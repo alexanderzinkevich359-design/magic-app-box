@@ -21,6 +21,7 @@ import SessionLogger from "./pages/coach/SessionLogger";
 import CoachDrills from "./pages/coach/CoachDrills";
 import SpotlightStudio from "./pages/coach/SpotlightStudio";
 import SpotlightCallback from "./pages/coach/SpotlightCallback";
+import CoachGameLog from "./pages/coach/CoachGameLog";
 import ParentDashboard from "./pages/parent/ParentDashboard";
 import AthleteDashboard from "./pages/athlete/AthleteDashboard";
 import AthleteSchedule from "./pages/athlete/AthleteSchedule";
@@ -73,6 +74,9 @@ const App = () => (
               <ProtectedRoute allowedRoles={["coach"]}><SpotlightStudio /></ProtectedRoute>
             } />
             <Route path="/coach/spotlight/callback" element={<SpotlightCallback />} />
+            <Route path="/coach/game-log" element={
+              <ProtectedRoute allowedRoles={["coach"]}><CoachGameLog /></ProtectedRoute>
+            } />
             <Route path="/coach/*" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachDashboard /></ProtectedRoute>
             } />

@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Menu, LogOut, Home, Users, Calendar, CreditCard,
-  BarChart3, Dumbbell, Target, Activity, ClipboardList, Settings, Layers, Sparkles
+  BarChart3, BarChart2, Dumbbell, Target, Activity, ClipboardList, Settings, Layers, Sparkles
 } from "lucide-react";
 
 type NavItem = { label: string; path: string; icon: ReactNode };
@@ -22,6 +22,7 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: "Teams", path: "/coach/teams", icon: <Layers className="h-4 w-4" /> },
     { label: "Log Session", path: "/coach/log-session", icon: <ClipboardList className="h-4 w-4" /> },
     { label: "Schedule", path: "/coach/schedule", icon: <Calendar className="h-4 w-4" /> },
+    { label: "Game Log", path: "/coach/game-log", icon: <BarChart2 className="h-4 w-4" /> },
     { label: "Spotlight", path: "/coach/spotlight", icon: <Sparkles className="h-4 w-4" /> },
     { label: "Billing", path: "/coach/billing", icon: <CreditCard className="h-4 w-4" /> },
     { label: "Settings", path: "/settings", icon: <Settings className="h-4 w-4" /> },
