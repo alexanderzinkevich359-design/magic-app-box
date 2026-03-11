@@ -782,9 +782,25 @@ function CoachGameLogInner() {
               {/* Step 2 — Athlete Selection */}
               {step === 2 && (
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    {isCompetitive ? "Select athletes who played in this event." : "Mark attendance for this practice."}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      {isCompetitive ? "Select athletes who played in this event." : "Mark attendance for this practice."}
+                    </p>
+                    {teamAthletes.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (selectedAthletes.size === teamAthletes.length) {
+                            setSelectedAthletes(new Set());
+                          } else {
+                            setSelectedAthletes(new Set(teamAthletes.map((a: any) => a.id)));
+                          }
+                        }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        {selectedAthletes.size === teamAthletes.length ? "Deselect all" : "Select all"}
+                      </button>
+                    )}
+                  </div>
 
                   {teamAthletes.length === 0 && (
                     <p className="text-sm text-muted-foreground py-4 text-center">
