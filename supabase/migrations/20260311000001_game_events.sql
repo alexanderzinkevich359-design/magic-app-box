@@ -27,24 +27,8 @@ ALTER TABLE public.game_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "ge_coach_all" ON public.game_events
   FOR ALL USING (coach_id = auth.uid()) WITH CHECK (coach_id = auth.uid());
 
--- Athlete: read events where they have a stat row
-CREATE POLICY "ge_athlete_select" ON public.game_events
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.game_athlete_stats gas
-      WHERE gas.event_id = id AND gas.athlete_id = auth.uid()
-    )
-  );
-
--- Parent: read events for their linked athlete
-CREATE POLICY "ge_parent_select" ON public.game_events
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.game_athlete_stats gas
-      WHERE gas.event_id = id
-        AND is_parent_of_athlete(auth.uid(), gas.athlete_id)
-    )
-  );
+-- NOTE: ge_athlete_select and ge_parent_select are created below,
+-- after game_athlete_stats is defined (they reference that table).
 
 -- Per-athlete per-event stats (flat key-value)
 CREATE TABLE IF NOT EXISTS public.game_athlete_stats (
@@ -83,6 +67,25 @@ CREATE POLICY "gas_athlete_select" ON public.game_athlete_stats
 -- Parent: read stats for their linked athlete
 CREATE POLICY "gas_parent_select" ON public.game_athlete_stats
   FOR SELECT USING (is_parent_of_athlete(auth.uid(), athlete_id));
+
+-- Athlete: read events where they have a stat row
+CREATE POLICY "ge_athlete_select" ON public.game_events
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.game_athlete_stats gas
+      WHERE gas.event_id = id AND gas.athlete_id = auth.uid()
+    )
+  );
+
+-- Parent: read events for their linked athlete
+CREATE POLICY "ge_parent_select" ON public.game_events
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.game_athlete_stats gas
+      WHERE gas.event_id = id
+        AND is_parent_of_athlete(auth.uid(), gas.athlete_id)
+    )
+  );
 
 -- ─── Seed game_stat_groups ───────────────────────────────────────────────────
 
