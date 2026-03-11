@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, Component, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,9 +85,35 @@ interface SeasonRow {
   stats: Record<string, number>;
 }
 
+// ─── Error Boundary ───────────────────────────────────────────────────────────
+
+class GameLogBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <DashboardLayout role="coach">
+          <div className="py-20 text-center">
+            <BarChart2 className="h-10 w-10 mx-auto text-muted-foreground mb-4" />
+            <p className="font-semibold text-lg">Something went wrong</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto font-mono">
+              {this.state.error.message}
+            </p>
+            <Button className="mt-6" onClick={() => this.setState({ error: null })}>
+              Try Again
+            </Button>
+          </div>
+        </DashboardLayout>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function CoachGameLog() {
+function CoachGameLogInner() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -672,12 +698,12 @@ export default function CoachGameLog() {
 
                     <div>
                       <Label htmlFor="ev-team">Team (optional)</Label>
-                      <Select value={formTeamId} onValueChange={setFormTeamId}>
+                      <Select value={formTeamId || "__none__"} onValueChange={(v) => setFormTeamId(v === "__none__" ? "" : v)}>
                         <SelectTrigger id="ev-team" className="mt-1">
                           <SelectValue placeholder="Select team…" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">No team</SelectItem>
+                          <SelectItem value="__none__">No team</SelectItem>
                           {teams.map((t: any) => (
                             <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                           ))}
@@ -926,12 +952,12 @@ export default function CoachGameLog() {
           <div className="flex flex-wrap gap-3 mb-4 items-center justify-between">
             <div className="flex gap-3 flex-wrap">
               <div className="w-48">
-                <Select value={seasonSportId} onValueChange={setSeasonSportId}>
+                <Select value={seasonSportId || "__all__"} onValueChange={(v) => setSeasonSportId(v === "__all__" ? "" : v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="All sports…" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All sports</SelectItem>
+                    <SelectItem value="__all__">All sports</SelectItem>
                     {sportConfigs.map((s) => (
                       <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
@@ -1236,5 +1262,13 @@ export default function CoachGameLog() {
         </DialogContent>
       </Dialog>
     </DashboardLayout>
+  );
+}
+
+export default function CoachGameLog() {
+  return (
+    <GameLogBoundary>
+      <CoachGameLogInner />
+    </GameLogBoundary>
   );
 }
