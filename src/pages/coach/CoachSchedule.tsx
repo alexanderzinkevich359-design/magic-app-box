@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Clock, Users, Layers, SplitSquareHorizontal, ClipboardList, XCircle, RotateCcw, Eraser } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Clock, Users, Layers, SplitSquareHorizontal, ClipboardList, XCircle, RotateCcw, Eraser, Trophy } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -92,6 +92,10 @@ type ScheduleEntry = {
   notes: string | null;
   color: string | null;
   status: string;
+  session_type: string;
+  game_opponent: string | null;
+  game_location: string | null;
+  game_home_away: string | null;
 };
 
 type AthleteOption = {
@@ -140,6 +144,12 @@ const CoachSchedule = () => {
   const [formNotes, setFormNotes]       = useState("");
   const [formColor, setFormColor]       = useState("default");
   const [formDate, setFormDate]         = useState("");
+
+  // Game fields
+  const [formIsGame, setFormIsGame]               = useState(false);
+  const [formGameOpponent, setFormGameOpponent]   = useState("");
+  const [formGameLocation, setFormGameLocation]   = useState("");
+  const [formGameHomeAway, setFormGameHomeAway]   = useState<"home" | "away" | "neutral">("home");
 
   // Recurrence: day-of-week + weeks
   const [formDays, setFormDays]     = useState<number[]>([]);
@@ -384,6 +394,10 @@ const CoachSchedule = () => {
     setFormNotes("");
     setFormColor("default");
     setFormDate("");
+    setFormIsGame(false);
+    setFormGameOpponent("");
+    setFormGameLocation("");
+    setFormGameHomeAway("home");
     setFormDays([]);
     setFormWeeks(1);
     setFormSplitEnabled(false);
@@ -427,6 +441,10 @@ const CoachSchedule = () => {
     setFormNotes(entry.notes || "");
     setFormColor(entry.color || "default");
     setFormDate(entry.scheduled_date);
+    setFormIsGame(entry.session_type === "game");
+    setFormGameOpponent(entry.game_opponent || "");
+    setFormGameLocation(entry.game_location || "");
+    setFormGameHomeAway((entry.game_home_away as "home" | "away" | "neutral") || "home");
     setShowForm(true);
   };
 
@@ -491,6 +509,10 @@ const CoachSchedule = () => {
           end_time: formEndTime || null,
           notes: formNotes || null,
           color: formColor,
+          session_type: formIsGame ? "game" : "regular",
+          game_opponent: formIsGame ? formGameOpponent || null : null,
+          game_location: formIsGame ? formGameLocation || null : null,
+          game_home_away: formIsGame ? formGameHomeAway : null,
         };
         // 1. Update all existing entries in the group
         if (groupEntries.length > 0) {
@@ -538,6 +560,10 @@ const CoachSchedule = () => {
               end_time: formEndTime || null,
               notes: formNotes || null,
               color: formColor,
+              session_type: formIsGame ? "game" : "regular",
+              game_opponent: formIsGame ? formGameOpponent || null : null,
+              game_location: formIsGame ? formGameLocation || null : null,
+              game_home_away: formIsGame ? formGameHomeAway : null,
             });
           });
         });
@@ -556,6 +582,10 @@ const CoachSchedule = () => {
               end_time: formEndTime || null,
               notes: formNotes || null,
               color: formColor,
+              session_type: "regular",
+              game_opponent: null,
+              game_location: null,
+              game_home_away: null,
             });
           });
         });
@@ -743,15 +773,24 @@ const CoachSchedule = () => {
                               className={`text-[10px] sm:text-xs truncate rounded px-1 py-0.5 border cursor-pointer ${
                                 entry.status === "canceled"
                                   ? "bg-secondary/30 border-border text-muted-foreground opacity-60 line-through"
-                                  : `cursor-grab active:cursor-grabbing ${getColorClass(entry.color || "default")}`
+                                  : entry.session_type === "game"
+                                    ? "cursor-grab active:cursor-grabbing bg-amber-500/20 border-amber-500/40 text-amber-300 font-semibold"
+                                    : `cursor-grab active:cursor-grabbing ${getColorClass(entry.color || "default")}`
                               }`}
-                              title={`${entry.status === "canceled" ? "CANCELED: " : ""}${entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"} ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
+                              title={`${entry.status === "canceled" ? "CANCELED: " : ""}${
+                                entry.session_type === "game"
+                                  ? `🏆 ${entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}${entry.game_location ? ` · ${entry.game_location}` : ""}${entry.game_home_away ? ` (${entry.game_home_away})` : ""}`
+                                  : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
+                              } ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
                             >
                               {entry.status === "canceled"
                                 ? <span className="not-italic">✕ </span>
                                 : entry.start_time && <span className="font-medium">{entry.start_time.slice(0, 5)} </span>
                               }
-                              {entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"}
+                              {entry.session_type === "game"
+                                ? <><Trophy className="h-2.5 w-2.5 inline-block mr-0.5 mb-0.5" />{entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}</>
+                                : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
+                              }
                             </div>
                           ))}
                           {entries.length > 3 && (
@@ -822,15 +861,27 @@ const CoachSchedule = () => {
                       className="w-full text-left rounded-lg border p-2.5 hover:bg-secondary/50 transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${getColorClass(entry.color || "default").split(" ")[0]}`} />
-                        <p className="text-xs font-medium truncate">{entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"}</p>
+                        {entry.session_type === "game"
+                          ? <Trophy className="w-3 h-3 shrink-0 text-amber-400" />
+                          : <span className={`w-2 h-2 rounded-full shrink-0 ${getColorClass(entry.color || "default").split(" ")[0]}`} />
+                        }
+                        <p className={`text-xs font-medium truncate ${entry.session_type === "game" ? "text-amber-300" : ""}`}>
+                          {entry.session_type === "game"
+                            ? (entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title)
+                            : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
+                          }
+                        </p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                         {format(parseISO(entry.scheduled_date), "EEE, MMM d")}
                         {entry.start_time && ` · ${entry.start_time.slice(0, 5)}`}
+                        {entry.session_type === "game" && entry.game_home_away && ` · ${entry.game_home_away}`}
                       </p>
                       <p className="text-[10px] text-muted-foreground pl-4">
-                        {getTeamForAthlete(entry.athlete_id)?.name ?? ""}
+                        {entry.session_type === "game"
+                          ? entry.game_location ?? ""
+                          : getTeamForAthlete(entry.athlete_id)?.name ?? ""
+                        }
                       </p>
                     </button>
                   ))}
@@ -950,6 +1001,74 @@ const CoachSchedule = () => {
             <div className="space-y-2">
               <Label>Session Title {formSplitEnabled && <span className="text-muted-foreground font-normal">(Group A)</span>}</Label>
               <Input placeholder="e.g. Batting Practice" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} />
+            </div>
+
+            {/* Game Day toggle */}
+            <div className={`rounded-lg border p-3 transition-colors ${formIsGame ? "border-amber-500/40 bg-amber-500/5" : ""}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !formIsGame;
+                  setFormIsGame(next);
+                  if (next) {
+                    if (!formTitle) setFormTitle("Game Day");
+                    setFormColor("blue");
+                  }
+                }}
+                className="w-full flex items-center justify-between text-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <Trophy className={`h-4 w-4 ${formIsGame ? "text-amber-400" : "text-muted-foreground"}`} />
+                  <span className="font-medium">Game Day</span>
+                  <span className="text-xs text-muted-foreground">(opponent, location & more)</span>
+                </div>
+                <div className={`w-8 h-4 rounded-full transition-colors ${formIsGame ? "bg-amber-500" : "bg-muted"}`}>
+                  <div className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-all ${formIsGame ? "ml-[18px]" : "ml-0.5"}`} />
+                </div>
+              </button>
+
+              {formIsGame && (
+                <div className="space-y-3 pt-3 border-t border-amber-500/20 mt-3">
+                  {/* Opponent */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Opponent <span className="text-amber-400">*</span></Label>
+                    <Input
+                      placeholder="e.g. Lincoln High School"
+                      value={formGameOpponent}
+                      onChange={(e) => setFormGameOpponent(e.target.value)}
+                    />
+                  </div>
+                  {/* Location */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Location</Label>
+                    <Input
+                      placeholder="e.g. Home Field · 123 Park Ave"
+                      value={formGameLocation}
+                      onChange={(e) => setFormGameLocation(e.target.value)}
+                    />
+                  </div>
+                  {/* Home / Away / Neutral */}
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Home / Away</Label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {(["home", "away", "neutral"] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setFormGameHomeAway(opt)}
+                          className={`rounded-lg border py-2 text-xs font-medium capitalize transition-colors ${
+                            formGameHomeAway === opt
+                              ? "border-amber-500 bg-amber-500/10 text-amber-400"
+                              : "border-border hover:bg-secondary text-muted-foreground"
+                          }`}
+                        >
+                          {opt === "home" ? "🏠 Home" : opt === "away" ? "✈️ Away" : "⚖️ Neutral"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Date */}
