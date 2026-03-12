@@ -170,6 +170,9 @@ const CoachSchedule = () => {
   // Edit mode: pending team reassignment (requires explicit confirmation)
   const [pendingReassignTeamId, setPendingReassignTeamId] = useState<string>("");
 
+  // Calendar team filter — null = all teams
+  const [calendarTeamFilter, setCalendarTeamFilter] = useState<string | null>(null);
+
   // Position split (Group B)
   const [formSplitEnabled, setFormSplitEnabled] = useState(false);
   const [formGroupBAthleteIds, setFormGroupBAthleteIds] = useState<string[]>([]);
@@ -301,7 +304,9 @@ const CoachSchedule = () => {
     const cutoff = addDays(today, 14);
     const filtered = schedule.filter((e) => {
       const d = parseISO(e.scheduled_date);
-      return !isBefore(d, today) && isBefore(d, cutoff);
+      if (!(!isBefore(d, today) && isBefore(d, cutoff))) return false;
+      if (calendarTeamFilter && entryTeamKey(e) !== calendarTeamFilter) return false;
+      return true;
     });
     // Deduplicate team sessions — keep one representative per (team + session) group
     const seen = new Set<string>();
@@ -337,6 +342,17 @@ const CoachSchedule = () => {
     });
     return map;
   }, [schedule]);
+
+  // Calendar-visible schedule — filtered by calendarTeamFilter when set
+  const calendarSchedule = useMemo(() => {
+    if (!calendarTeamFilter) return scheduleByDateDeduped;
+    const out: Record<string, ScheduleEntry[]> = {};
+    for (const [date, entries] of Object.entries(scheduleByDateDeduped)) {
+      const f = entries.filter((e) => entryTeamKey(e) === calendarTeamFilter);
+      if (f.length) out[date] = f;
+    }
+    return out;
+  }, [scheduleByDateDeduped, calendarTeamFilter]);
 
   // How many athletes share each (team_id + date + title + start_time + color + status) group
   const teamGroupCounts = useMemo(() => {
@@ -521,11 +537,11 @@ const CoachSchedule = () => {
   // ── Mutations ─────────────────────────────────────────────────────────────────
 
   const saveMut = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (vars: { isEdit: boolean }) => {
       if (!user || !formDate) return;
       const dates = buildDates(formDate);
 
-      if (editEntry) {
+      if (vars.isEdit && editEntry) {
         // Resolve the full group — team_id is part of the key so edits
         // are scoped to one team and never touch another team's rows.
         const origKey = `${editEntry.title}|${editEntry.start_time}|${editEntry.color}|${editEntry.status}|${entryTeamKey(editEntry)}`;
@@ -632,9 +648,9 @@ const CoachSchedule = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
-      if (editEntry) {
+      if (vars.isEdit) {
         toast({ title: "Session updated." });
       } else {
         const totalAthletes = formAthleteIds.length + (formSplitEnabled ? formGroupBAthleteIds.length : 0);
@@ -794,7 +810,7 @@ const CoachSchedule = () => {
                   ))}
                   {days.map((day) => {
                     const dateKey = format(day, "yyyy-MM-dd");
-                    const entries = scheduleByDateDeduped[dateKey] || [];
+                    const entries = calendarSchedule[dateKey] || [];
                     const todayDay = isToday(day);
                     return (
                       <div
@@ -863,6 +879,45 @@ const CoachSchedule = () => {
 
         {/* Sidebar */}
         <div className="space-y-4">
+          {/* Team view filter — only shown when coach has multiple teams */}
+          {teams.length > 1 && (
+            <Card>
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5" /> View Schedule
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3 space-y-1">
+                <button
+                  onClick={() => setCalendarTeamFilter(null)}
+                  className={`w-full text-left text-xs rounded-lg border px-3 py-2 transition-colors ${
+                    calendarTeamFilter === null
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border hover:bg-secondary/50 text-muted-foreground"
+                  }`}
+                >
+                  All Teams
+                </button>
+                {teams.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setCalendarTeamFilter(calendarTeamFilter === t.id ? null : t.id)}
+                    className={`w-full text-left text-xs rounded-lg border px-3 py-2 transition-colors ${
+                      calendarTeamFilter === t.id
+                        ? "border-primary bg-primary/10 text-primary font-medium"
+                        : "border-border hover:bg-secondary/50 text-muted-foreground"
+                    }`}
+                  >
+                    {t.name}
+                    {isTeamInSeason(t) && (
+                      <span className="ml-1.5 text-emerald-400 text-[10px]">● In Season</span>
+                    )}
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           {/* In-season teams banner */}
           {inSeasonTeams.length > 0 && (
             <Card className="border-emerald-500/30 bg-emerald-500/5">
@@ -1639,7 +1694,7 @@ const CoachSchedule = () => {
             )}
             <Button variant="outline" onClick={() => { setShowForm(false); resetForm(); }}>Close</Button>
             <Button
-              onClick={() => saveMut.mutate()}
+              onClick={() => saveMut.mutate({ isEdit: !!editEntry })}
               disabled={
                 (!isTeamCoach && formAthleteIds.length === 0 && !(formSplitEnabled && formGroupBAthleteIds.length > 0)) ||
                 (isTeamCoach && !editEntry && !formTeamId) ||
