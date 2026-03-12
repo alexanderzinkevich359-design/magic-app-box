@@ -166,6 +166,9 @@ const CoachSchedule = () => {
   // Quick schedule team selection (sidebar)
   const [quickScheduleTeamId, setQuickScheduleTeamId] = useState<string>("");
 
+  // Edit mode: pending team reassignment (requires explicit confirmation)
+  const [pendingReassignTeamId, setPendingReassignTeamId] = useState<string>("");
+
   // Position split (Group B)
   const [formSplitEnabled, setFormSplitEnabled] = useState(false);
   const [formGroupBAthleteIds, setFormGroupBAthleteIds] = useState<string[]>([]);
@@ -389,9 +392,10 @@ const CoachSchedule = () => {
     }
   }, [formTeamId, teams, athletes, editEntry]);
 
-  // Default quick-schedule team to first in-season team once data loads
+  // Default quick-schedule team only when there is exactly ONE in-season team.
+  // With multiple teams the coach must pick explicitly to avoid wrong-team assignment.
   useEffect(() => {
-    if (quickScheduleTeamId || inSeasonTeams.length === 0) return;
+    if (quickScheduleTeamId || inSeasonTeams.length !== 1) return;
     setQuickScheduleTeamId(inSeasonTeams[0].id);
   }, [inSeasonTeams, quickScheduleTeamId]);
 
@@ -418,6 +422,7 @@ const CoachSchedule = () => {
     setFormGroupBTitle("");
     setEditEntry(null);
     setDeleteConfirm(false);
+    setPendingReassignTeamId("");
   };
 
   // Auto-open form when navigated from Drills page (?date=&title=)
@@ -981,6 +986,128 @@ const CoachSchedule = () => {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* ── Team / mode selector — always at the very top ── */}
+            {(teams.length > 0) && (
+              <div className={`rounded-lg border p-3 space-y-2 ${
+                !editEntry && (formMode === "team" || isTeamCoach) && !formTeamId
+                  ? "border-amber-500/40 bg-amber-500/5"
+                  : "border-primary/20 bg-primary/5"
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-primary shrink-0" />
+                  <span className="text-sm font-semibold">
+                    {editEntry ? "Team" : "Scheduling for"}
+                  </span>
+                </div>
+
+                {/* Create mode only: Individual vs Team toggle */}
+                {!editEntry && !isTeamCoach && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setFormMode("individual"); setFormTeamId(""); }}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        formMode === "individual" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
+                      }`}
+                    >
+                      Individual athletes
+                    </button>
+                    <button
+                      onClick={() => setFormMode("team")}
+                      className={`rounded-lg border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
+                        formMode === "team" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
+                      }`}
+                    >
+                      <Users className="h-3.5 w-3.5" /> Team
+                    </button>
+                  </div>
+                )}
+
+                {/* Team dropdown — create mode */}
+                {!editEntry && (formMode === "team" || isTeamCoach) && (
+                  <Select value={formTeamId} onValueChange={setFormTeamId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}{isTeamInSeason(t) && " (In Season)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Team dropdown — edit mode */}
+                {editEntry && (
+                  <Select
+                    value={pendingReassignTeamId || formTeamId}
+                    onValueChange={(newId) => {
+                      if (newId !== formTeamId) {
+                        setPendingReassignTeamId(newId);
+                      } else {
+                        setPendingReassignTeamId("");
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="No team assigned" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}{isTeamInSeason(t) && " (In Season)"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* In-season indicator */}
+                {selectedTeam && isTeamInSeason(selectedTeam) && !pendingReassignTeamId && (
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                    This team is currently in season
+                  </div>
+                )}
+
+                {/* Confirmation banner for edit-mode team change */}
+                {editEntry && pendingReassignTeamId && (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 space-y-2">
+                    <p className="text-xs font-medium text-amber-400">
+                      Reassign to {teams.find((t) => t.id === pendingReassignTeamId)?.name}?
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      The current team's athletes will be replaced with{" "}
+                      {teams.find((t) => t.id === pendingReassignTeamId)?.name}'s full roster.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          const newTeam = teams.find((t) => t.id === pendingReassignTeamId);
+                          setFormTeamId(pendingReassignTeamId);
+                          if (newTeam) setFormAthleteIds(newTeam.memberIds);
+                          setPendingReassignTeamId("");
+                        }}
+                      >
+                        Confirm reassignment
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => setPendingReassignTeamId("")}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Practice plan preview — shown when a practice plan exists for the selected date */}
             {formDatePlan && (
               <div className="rounded-lg border border-violet-500/20 bg-violet-500/5 p-3 space-y-2">
@@ -1185,111 +1312,9 @@ const CoachSchedule = () => {
               })}
             </div>
 
-            {/* Scheduling mode: Individual vs Team (create only) */}
-            {!editEntry && (
-              <div className="space-y-2">
-                <Label>Schedule for</Label>
-                {/* Team coaches skip the toggle — they always schedule for a team */}
-                {!isTeamCoach && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => { setFormMode("individual"); setFormTeamId(""); }}
-                      className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
-                        formMode === "individual" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
-                      }`}
-                    >
-                      Individual athletes
-                    </button>
-                    <button
-                      onClick={() => setFormMode("team")}
-                      className={`rounded-lg border px-3 py-2 text-sm transition-colors flex items-center justify-center gap-1.5 ${
-                        formMode === "team" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary"
-                      }`}
-                    >
-                      <Users className="h-3.5 w-3.5" /> Team
-                    </button>
-                  </div>
-                )}
 
-                {(formMode === "team" || isTeamCoach) && (
-                  <Select value={formTeamId} onValueChange={setFormTeamId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a team" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {teams.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.name}
-                          {isTeamInSeason(t) && " (In Season)"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {(formMode === "team" || isTeamCoach) && selectedTeam && isTeamInSeason(selectedTeam) && (
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                    This team is currently in season
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Edit mode: team reassignment selector */}
-            {editEntry && teams.length > 0 && (
-              <div className="space-y-2">
-                <Label>Team</Label>
-                <Select
-                  value={formTeamId}
-                  onValueChange={(newTeamId) => {
-                    setFormTeamId(newTeamId);
-                    const newTeam = teams.find((t) => t.id === newTeamId);
-                    if (newTeam) setFormAthleteIds(newTeam.memberIds);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="No team assigned" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teams.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                        {isTeamInSeason(t) && " (In Season)"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedTeam && isTeamInSeason(selectedTeam) && (
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-                    This team is currently in season
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Athlete selection — team coaches see team badge; individual coaches see checkboxes */}
-            {isTeamCoach ? (
-              // Team coach: show current team badge (already editable via selector above)
-              <div className="space-y-2">
-                {(() => {
-                  const team = selectedTeam ?? getTeamForAthlete(editEntry?.athlete_id ?? "");
-                  return team ? (
-                    <div className="flex items-center gap-2 rounded-lg border px-3 py-2.5 bg-secondary/30">
-                      <Users className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-sm font-medium">{team.name}</span>
-                      <span className="text-xs text-muted-foreground ml-1">· {team.memberIds.length} athletes</span>
-                      {isTeamInSeason(team) && (
-                        <span className="text-xs text-emerald-400 ml-auto">In Season</span>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Select a team above to continue.</p>
-                  );
-                })()}
-              </div>
-            ) : (
+            {/* Athlete selection — individual coaches see checkboxes; team coaches skip (team set above) */}
+            {!isTeamCoach && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>
