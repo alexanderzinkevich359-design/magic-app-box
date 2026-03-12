@@ -863,10 +863,10 @@ const CoachAthletes = () => {
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-sm text-muted-foreground">{athlete.position || "No position"}</span>
-                          {athlete.throw_hand && (
+                          {sportConfigMap.get(athlete.sport_id)?.session_config.hasHandTracking && athlete.throw_hand && (
                             <Badge variant="outline" className="text-[10px]">Throws: {athlete.throw_hand}</Badge>
                           )}
-                          {athlete.bat_hand && (
+                          {sportConfigMap.get(athlete.sport_id)?.session_config.hasHandTracking && athlete.bat_hand && (
                             <Badge variant="outline" className="text-[10px]">Bats: {athlete.bat_hand}</Badge>
                           )}
                         </div>
@@ -1056,8 +1056,8 @@ const CoachAthletes = () => {
                     </DialogTitle>
                     <DialogDescription>
                       {selectedAthlete.position || athleteSportConfig?.name || ""}
-                      {selectedAthlete.throw_hand && ` · Throws: ${selectedAthlete.throw_hand}`}
-                      {selectedAthlete.bat_hand && ` · Bats: ${selectedAthlete.bat_hand}`}
+                      {athleteSportConfig?.session_config.hasHandTracking && selectedAthlete.throw_hand && ` · Throws: ${selectedAthlete.throw_hand}`}
+                      {athleteSportConfig?.session_config.hasHandTracking && selectedAthlete.bat_hand && ` · Bats: ${selectedAthlete.bat_hand}`}
                     </DialogDescription>
                     {(selectedAthlete.height || selectedAthlete.weight_lbs || selectedAthlete.school || selectedAthlete.grad_year || selectedAthlete.hometown) && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -1193,33 +1193,35 @@ const CoachAthletes = () => {
                         />
                       </div>
 
-                      {/* Throws + Bats */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Throws</Label>
-                          <Select
-                            value={selectedAthlete.throw_hand || ""}
-                            onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { throw_hand: v } })}
-                          >
-                            <SelectTrigger className="h-8"><SelectValue placeholder="Set..." /></SelectTrigger>
-                            <SelectContent>
-                              {HANDS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                      {/* Throws + Bats — only for sports with hand tracking (e.g. baseball, softball) */}
+                      {athleteSportConfig?.session_config.hasHandTracking && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Throws</Label>
+                            <Select
+                              value={selectedAthlete.throw_hand || ""}
+                              onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { throw_hand: v } })}
+                            >
+                              <SelectTrigger className="h-8"><SelectValue placeholder="Set..." /></SelectTrigger>
+                              <SelectContent>
+                                {HANDS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-muted-foreground uppercase tracking-wide">Bats</Label>
+                            <Select
+                              value={selectedAthlete.bat_hand || ""}
+                              onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { bat_hand: v } })}
+                            >
+                              <SelectTrigger className="h-8"><SelectValue placeholder="Set..." /></SelectTrigger>
+                              <SelectContent>
+                                {HANDS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Bats</Label>
-                          <Select
-                            value={selectedAthlete.bat_hand || ""}
-                            onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { bat_hand: v } })}
-                          >
-                            <SelectTrigger className="h-8"><SelectValue placeholder="Set..." /></SelectTrigger>
-                            <SelectContent>
-                              {HANDS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
+                      )}
 
                       <div className="h-px bg-border" />
 
