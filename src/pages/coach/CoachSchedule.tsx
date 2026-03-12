@@ -161,6 +161,7 @@ const CoachSchedule = () => {
   // Mass clear dialog
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [clearRange, setClearRange] = useState<"month" | "future" | "all">("month");
+  const [clearTeamId, setClearTeamId] = useState<string>("__all__");
 
   // Position split (Group B)
   const [formSplitEnabled, setFormSplitEnabled] = useState(false);
@@ -651,7 +652,7 @@ const CoachSchedule = () => {
   });
 
   const clearMut = useMutation({
-    mutationFn: async (range: "month" | "future" | "all") => {
+    mutationFn: async ({ range, teamId }: { range: "month" | "future" | "all"; teamId: string }) => {
       if (!user) return;
       let query = supabase.from("coach_schedule").delete().eq("coach_id", user.id);
       if (range === "month") {
@@ -660,6 +661,12 @@ const CoachSchedule = () => {
           .lte("scheduled_date", format(monthEnd, "yyyy-MM-dd"));
       } else if (range === "future") {
         query = query.gte("scheduled_date", format(today, "yyyy-MM-dd"));
+      }
+      if (teamId !== "__all__") {
+        const memberIds = teams.find((t) => t.id === teamId)?.memberIds ?? [];
+        if (memberIds.length > 0) {
+          query = query.in("athlete_id", memberIds);
+        }
       }
       const { error } = await query;
       if (error) throw error;
@@ -911,9 +918,12 @@ const CoachSchedule = () => {
                     setFormTitle(p.label);
                     setFormColor(p.color);
                     setFormDate(format(new Date(), "yyyy-MM-dd"));
-                    if (inSeasonTeams.length > 0) {
+                    if (inSeasonTeams.length === 1) {
                       setFormMode("team");
                       setFormTeamId(inSeasonTeams[0].id);
+                    } else if (inSeasonTeams.length > 1) {
+                      // Multiple in-season teams — let coach choose which team
+                      setFormMode("team");
                     }
                     setShowForm(true);
                   }}
@@ -1542,38 +1552,76 @@ const CoachSchedule = () => {
               <Eraser className="h-5 w-5" /> Clear Sessions
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Choose which sessions to permanently delete:</p>
-            <div className="space-y-2">
-              {([
-                { value: "month", label: `This month (${format(monthStart, "MMMM yyyy")})`, desc: "Only sessions in the current calendar view" },
-                { value: "future", label: "All future sessions", desc: "Today and all upcoming sessions" },
-                { value: "all", label: "Everything", desc: "All sessions ever — cannot be undone" },
-              ] as const).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setClearRange(opt.value)}
-                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                    clearRange === opt.value
-                      ? "border-destructive bg-destructive/10"
-                      : "border-border hover:bg-secondary/50"
-                  }`}
-                >
-                  <p className={`text-sm font-medium ${clearRange === opt.value ? "text-destructive" : ""}`}>{opt.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
-                </button>
-              ))}
+
+            {/* Team filter — only shown when there are teams */}
+            {teams.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Team</p>
+                <div className="grid grid-cols-1 gap-1.5">
+                  <button
+                    onClick={() => setClearTeamId("__all__")}
+                    className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors ${
+                      clearTeamId === "__all__"
+                        ? "border-destructive bg-destructive/10 text-destructive font-medium"
+                        : "border-border hover:bg-secondary/50"
+                    }`}
+                  >
+                    All teams
+                  </button>
+                  {teams.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setClearTeamId(t.id)}
+                      className={`w-full text-left rounded-lg border px-3 py-2 text-sm transition-colors ${
+                        clearTeamId === t.id
+                          ? "border-destructive bg-destructive/10 text-destructive font-medium"
+                          : "border-border hover:bg-secondary/50"
+                      }`}
+                    >
+                      {t.name}
+                      <span className="text-xs text-muted-foreground font-normal ml-1.5">· {t.memberIds.length} athletes</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Time range</p>
+              <div className="space-y-1.5">
+                {([
+                  { value: "month", label: `This month (${format(monthStart, "MMMM yyyy")})`, desc: "Only sessions in the current calendar view" },
+                  { value: "future", label: "All future sessions", desc: "Today and all upcoming sessions" },
+                  { value: "all", label: "Everything", desc: "All sessions ever — cannot be undone" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setClearRange(opt.value)}
+                    className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                      clearRange === opt.value
+                        ? "border-destructive bg-destructive/10"
+                        : "border-border hover:bg-secondary/50"
+                    }`}
+                  >
+                    <p className={`text-sm font-medium ${clearRange === opt.value ? "text-destructive" : ""}`}>{opt.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{opt.desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowClearDialog(false)}>Cancel</Button>
             <Button
               variant="destructive"
-              onClick={() => clearMut.mutate(clearRange)}
+              onClick={() => clearMut.mutate({ range: clearRange, teamId: clearTeamId })}
               disabled={clearMut.isPending}
             >
               {clearMut.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
               Delete {clearRange === "month" ? "This Month" : clearRange === "future" ? "All Future" : "Everything"}
+              {clearTeamId !== "__all__" && ` · ${teams.find((t) => t.id === clearTeamId)?.name}`}
             </Button>
           </DialogFooter>
         </DialogContent>
