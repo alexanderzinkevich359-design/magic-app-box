@@ -163,6 +163,9 @@ const CoachSchedule = () => {
   const [clearRange, setClearRange] = useState<"month" | "future" | "all">("month");
   const [clearTeamId, setClearTeamId] = useState<string>("__all__");
 
+  // Quick schedule team selection (sidebar)
+  const [quickScheduleTeamId, setQuickScheduleTeamId] = useState<string>("");
+
   // Position split (Group B)
   const [formSplitEnabled, setFormSplitEnabled] = useState(false);
   const [formGroupBAthleteIds, setFormGroupBAthleteIds] = useState<string[]>([]);
@@ -382,6 +385,12 @@ const CoachSchedule = () => {
       setFormAthleteIds(team.memberIds);
     }
   }, [formTeamId, teams, athletes]);
+
+  // Default quick-schedule team to first in-season team once data loads
+  useEffect(() => {
+    if (quickScheduleTeamId || inSeasonTeams.length === 0) return;
+    setQuickScheduleTeamId(inSeasonTeams[0].id);
+  }, [inSeasonTeams, quickScheduleTeamId]);
 
   // ── Form helpers ─────────────────────────────────────────────────────────────
 
@@ -906,32 +915,51 @@ const CoachSchedule = () => {
                 {inSeasonTeams.length > 0 ? "In-Season Quick Schedule" : "Quick Schedule"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-4 pb-4 space-y-1.5">
-              {activePresets.map((p) => (
-                <Button
-                  key={p.label}
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start text-xs h-8"
-                  onClick={() => {
-                    resetForm();
-                    setFormTitle(p.label);
-                    setFormColor(p.color);
-                    setFormDate(format(new Date(), "yyyy-MM-dd"));
-                    if (inSeasonTeams.length === 1) {
-                      setFormMode("team");
-                      setFormTeamId(inSeasonTeams[0].id);
-                    } else if (inSeasonTeams.length > 1) {
-                      // Multiple in-season teams — let coach choose which team
-                      setFormMode("team");
-                    }
-                    setShowForm(true);
-                  }}
-                >
-                  <span className={`w-2 h-2 rounded-full mr-2 shrink-0 ${getColorClass(p.color).split(" ")[0]}`} />
-                  {p.label}
-                </Button>
-              ))}
+            <CardContent className="px-4 pb-4 space-y-2">
+              {/* Team selector — shown when multiple teams exist */}
+              {teams.length > 1 && (
+                <div className="flex flex-wrap gap-1.5 pb-1 border-b border-border">
+                  {teams.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setQuickScheduleTeamId(t.id)}
+                      className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
+                        quickScheduleTeamId === t.id
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border hover:bg-secondary text-muted-foreground"
+                      }`}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {activePresets.map((p) => (
+                  <Button
+                    key={p.label}
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-xs h-8"
+                    onClick={() => {
+                      resetForm();
+                      setFormTitle(p.label);
+                      setFormColor(p.color);
+                      setFormDate(format(new Date(), "yyyy-MM-dd"));
+                      if (quickScheduleTeamId) {
+                        setFormMode("team");
+                        setFormTeamId(quickScheduleTeamId);
+                      } else if (inSeasonTeams.length > 0) {
+                        setFormMode("team");
+                      }
+                      setShowForm(true);
+                    }}
+                  >
+                    <span className={`w-2 h-2 rounded-full mr-2 shrink-0 ${getColorClass(p.color).split(" ")[0]}`} />
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </div>
