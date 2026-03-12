@@ -378,7 +378,7 @@ const CoachSchedule = () => {
     if (!formTeamId) return;
     const team = teams.find((t) => t.id === formTeamId);
     if (team) {
-      setFormAthleteIds(team.memberIds.filter((id) => athletes.some((a) => a.id === id)));
+      setFormAthleteIds(team.memberIds);
     }
   }, [formTeamId, teams, athletes]);
 
@@ -539,11 +539,13 @@ const CoachSchedule = () => {
 
       // For team coaches, auto-fill athletes from selected team if not already set
       const effectiveAthleteIds = (isTeamCoach && formAthleteIds.length === 0 && formTeamId)
-        ? (teams.find((t) => t.id === formTeamId)?.memberIds.filter((id) => athletes.some((a) => a.id === id)) ?? [])
+        ? (teams.find((t) => t.id === formTeamId)?.memberIds ?? [])
         : formAthleteIds;
       if (effectiveAthleteIds !== formAthleteIds) setFormAthleteIds(effectiveAthleteIds);
 
-      if (effectiveAthleteIds.length === 0 && formGroupBAthleteIds.length === 0) return;
+      if (effectiveAthleteIds.length === 0 && formGroupBAthleteIds.length === 0) {
+        throw new Error("No athletes selected. Add athletes to the team or select them individually.");
+      }
 
       const rows: object[] = [];
 
