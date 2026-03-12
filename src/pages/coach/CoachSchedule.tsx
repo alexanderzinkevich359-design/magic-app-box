@@ -85,6 +85,7 @@ type ScheduleEntry = {
   id: string;
   coach_id: string;
   athlete_id: string;
+  team_id: string | null;
   title: string;
   scheduled_date: string;
   start_time: string | null;
@@ -302,10 +303,10 @@ const CoachSchedule = () => {
       const d = parseISO(e.scheduled_date);
       return !isBefore(d, today) && isBefore(d, cutoff);
     });
-    // Deduplicate team sessions — keep one representative per group
+    // Deduplicate team sessions — keep one representative per (team + session) group
     const seen = new Set<string>();
     return filtered.filter((e) => {
-      const key = `${e.scheduled_date}|${e.title}|${e.start_time}|${e.color}|${e.status}`;
+      const key = `${e.scheduled_date}|${e.title}|${e.start_time}|${e.color}|${e.status}|${e.team_id ?? "none"}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -322,14 +323,14 @@ const CoachSchedule = () => {
     return map;
   }, [schedule]);
 
-  // Deduplicated: same (title, start_time, color, status) on same date → one chip
+  // Deduplicated: same (team_id + title + start_time + color + status) on same date → one chip
   const scheduleByDateDeduped = useMemo(() => {
     const map: Record<string, ScheduleEntry[]> = {};
     schedule.forEach((entry) => {
       if (!map[entry.scheduled_date]) map[entry.scheduled_date] = [];
-      const key = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+      const key = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}|${entry.team_id ?? "none"}`;
       if (!map[entry.scheduled_date].some(
-        (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === key
+        (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}|${e.team_id ?? "none"}` === key
       )) {
         map[entry.scheduled_date].push(entry);
       }
@@ -337,11 +338,11 @@ const CoachSchedule = () => {
     return map;
   }, [schedule]);
 
-  // How many athletes share each (date|title|start_time|color|status) group
+  // How many athletes share each (team_id + date + title + start_time + color + status) group
   const teamGroupCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     schedule.forEach((entry) => {
-      const key = `${entry.scheduled_date}|${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+      const key = `${entry.scheduled_date}|${entry.title}|${entry.start_time}|${entry.color}|${entry.status}|${entry.team_id ?? "none"}`;
       counts[key] = (counts[key] || 0) + 1;
     });
     return counts;
@@ -367,9 +368,9 @@ const CoachSchedule = () => {
 
   /** Return all row IDs that belong to the same session group as `entry`. */
   const getGroupIds = (entry: ScheduleEntry): string[] => {
-    const key = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+    const key = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}|${entry.team_id ?? "none"}`;
     return (scheduleByDate[entry.scheduled_date] || [])
-      .filter((e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === key)
+      .filter((e) => `${e.title}|${e.start_time}|${e.color}|${e.status}|${e.team_id ?? "none"}` === key)
       .map((e) => e.id);
   };
 
@@ -447,15 +448,15 @@ const CoachSchedule = () => {
   const openEditEntry = (entry: ScheduleEntry) => {
     resetForm();
     setEditEntry(entry);
-    // Find all athletes in the same group (same date + title + time + color + status)
-    const groupKey = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}`;
+    // Find all athletes in the same group — team_id is part of the key so
+    // sessions for different teams with the same title/time never merge.
+    const groupKey = `${entry.title}|${entry.start_time}|${entry.color}|${entry.status}|${entry.team_id ?? "none"}`;
     const groupEntries = (scheduleByDate[entry.scheduled_date] || []).filter(
-      (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === groupKey
+      (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}|${e.team_id ?? "none"}` === groupKey
     );
     setFormAthleteIds(groupEntries.map((e) => e.athlete_id));
-    // Pre-select the team this session belongs to (for the team-change dropdown)
-    const currentTeam = getTeamForAthlete(entry.athlete_id);
-    if (currentTeam) setFormTeamId(currentTeam.id);
+    // Use the stored team_id directly (not derived from athlete membership)
+    if (entry.team_id) setFormTeamId(entry.team_id);
     setFormTitle(entry.title);
     setFormStartTime(entry.start_time?.slice(0, 5) || "");
     setFormEndTime(entry.end_time?.slice(0, 5) || "");
@@ -517,10 +518,11 @@ const CoachSchedule = () => {
       const dates = buildDates(formDate);
 
       if (editEntry) {
-        // Resolve the full group (all athlete rows for this session)
-        const origKey = `${editEntry.title}|${editEntry.start_time}|${editEntry.color}|${editEntry.status}`;
+        // Resolve the full group — team_id is part of the key so edits
+        // are scoped to one team and never touch another team's rows.
+        const origKey = `${editEntry.title}|${editEntry.start_time}|${editEntry.color}|${editEntry.status}|${editEntry.team_id ?? "none"}`;
         const groupEntries = (scheduleByDate[editEntry.scheduled_date] || []).filter(
-          (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === origKey
+          (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}|${e.team_id ?? "none"}` === origKey
         );
         const currentAthleteIds = groupEntries.map((e) => e.athlete_id);
         const updates = {
@@ -530,6 +532,7 @@ const CoachSchedule = () => {
           end_time: formEndTime || null,
           notes: formNotes || null,
           color: formColor,
+          team_id: formTeamId || null,
           session_type: formIsGame ? "game" : "regular",
           game_opponent: formIsGame ? formGameOpponent || null : null,
           game_location: formIsGame ? formGameLocation || null : null,
@@ -577,6 +580,7 @@ const CoachSchedule = () => {
             rows.push({
               coach_id: user.id,
               athlete_id: athleteId,
+              team_id: formTeamId || null,
               title: formTitle || getAthleteName(athleteId),
               scheduled_date: date,
               start_time: formStartTime || null,
@@ -599,6 +603,7 @@ const CoachSchedule = () => {
             rows.push({
               coach_id: user.id,
               athlete_id: athleteId,
+              team_id: formTeamId || null,
               title: formGroupBTitle || getAthleteName(athleteId),
               scheduled_date: date,
               start_time: formStartTime || null,
