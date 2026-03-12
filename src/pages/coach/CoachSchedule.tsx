@@ -378,13 +378,16 @@ const CoachSchedule = () => {
 
   // ── Auto-fill athletes when team changes ─────────────────────────────────────
 
+  // Only auto-fill athletes on team change during CREATE mode.
+  // In edit mode the athletes come from the existing session group; team changes
+  // are handled inline via onValueChange to avoid overwriting the loaded group.
   useEffect(() => {
-    if (!formTeamId) return;
+    if (editEntry || !formTeamId) return;
     const team = teams.find((t) => t.id === formTeamId);
     if (team) {
       setFormAthleteIds(team.memberIds);
     }
-  }, [formTeamId, teams, athletes]);
+  }, [formTeamId, teams, athletes, editEntry]);
 
   // Default quick-schedule team to first in-season team once data loads
   useEffect(() => {
@@ -445,6 +448,9 @@ const CoachSchedule = () => {
       (e) => `${e.title}|${e.start_time}|${e.color}|${e.status}` === groupKey
     );
     setFormAthleteIds(groupEntries.map((e) => e.athlete_id));
+    // Pre-select the team this session belongs to (for the team-change dropdown)
+    const currentTeam = getTeamForAthlete(entry.athlete_id);
+    if (currentTeam) setFormTeamId(currentTeam.id);
     setFormTitle(entry.title);
     setFormStartTime(entry.start_time?.slice(0, 5) || "");
     setFormEndTime(entry.end_time?.slice(0, 5) || "");
@@ -1179,7 +1185,7 @@ const CoachSchedule = () => {
               })}
             </div>
 
-            {/* Scheduling mode: Individual vs Team */}
+            {/* Scheduling mode: Individual vs Team (create only) */}
             {!editEntry && (
               <div className="space-y-2">
                 <Label>Schedule for</Label>
@@ -1230,15 +1236,45 @@ const CoachSchedule = () => {
               </div>
             )}
 
-            {/* Athlete selection — team coaches see team badge; individual coaches see checkboxes */}
-            {isTeamCoach ? (
-              // Team coach: show which team this session covers (no individual names)
+            {/* Edit mode: team reassignment selector */}
+            {editEntry && teams.length > 0 && (
               <div className="space-y-2">
                 <Label>Team</Label>
+                <Select
+                  value={formTeamId}
+                  onValueChange={(newTeamId) => {
+                    setFormTeamId(newTeamId);
+                    const newTeam = teams.find((t) => t.id === newTeamId);
+                    if (newTeam) setFormAthleteIds(newTeam.memberIds);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No team assigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teams.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                        {isTeamInSeason(t) && " (In Season)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTeam && isTeamInSeason(selectedTeam) && (
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                    This team is currently in season
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Athlete selection — team coaches see team badge; individual coaches see checkboxes */}
+            {isTeamCoach ? (
+              // Team coach: show current team badge (already editable via selector above)
+              <div className="space-y-2">
                 {(() => {
-                  const team = editEntry
-                    ? getTeamForAthlete(editEntry.athlete_id)
-                    : (selectedTeam ?? null);
+                  const team = selectedTeam ?? getTeamForAthlete(editEntry?.athlete_id ?? "");
                   return team ? (
                     <div className="flex items-center gap-2 rounded-lg border px-3 py-2.5 bg-secondary/30">
                       <Users className="h-4 w-4 text-primary shrink-0" />
