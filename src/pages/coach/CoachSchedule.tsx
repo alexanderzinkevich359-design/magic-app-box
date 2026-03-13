@@ -135,6 +135,11 @@ const CoachSchedule = () => {
   const [editEntry, setEditEntry] = useState<ScheduleEntry | null>(null);
   const [showForm, setShowForm] = useState(false);
 
+  // Undo last schedule action
+  const [undoIds, setUndoIds] = useState<string[]>([]);
+  const [showUndo, setShowUndo] = useState(false);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Core form state
   const [formMode, setFormMode]         = useState<"individual" | "team">("individual");
   const [formTeamId, setFormTeamId]     = useState("");
@@ -599,7 +604,7 @@ const CoachSchedule = () => {
               coach_id: user.id,
               athlete_id: athleteId,
               team_id: formTeamId || null,
-              title: formTitle || getAthleteName(athleteId),
+              title: formTitle || "Practice",
               scheduled_date: date,
               start_time: formStartTime || null,
               end_time: formEndTime || null,
@@ -622,7 +627,7 @@ const CoachSchedule = () => {
               coach_id: user.id,
               athlete_id: athleteId,
               team_id: formTeamId || null,
-              title: formGroupBTitle || getAthleteName(athleteId),
+              title: formGroupBTitle || "Practice",
               scheduled_date: date,
               start_time: formStartTime || null,
               end_time: formEndTime || null,
@@ -638,11 +643,13 @@ const CoachSchedule = () => {
       }
 
       if (rows.length > 0) {
-        const { error } = await supabase.from("coach_schedule").insert(rows);
+        const { data: inserted, error } = await supabase.from("coach_schedule").insert(rows).select("id");
         if (error) throw error;
+        return (inserted ?? []).map((r: { id: string }) => r.id);
       }
+      return [] as string[];
     },
-    onSuccess: (_, vars) => {
+    onSuccess: (insertedIds, vars) => {
       queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
       if (vars.isEdit) {
         toast({ title: "Session updated." });
@@ -653,11 +660,33 @@ const CoachSchedule = () => {
         const teamName = teams.find((t) => t.id === formTeamId)?.name;
         const label = teamName ? ` for ${teamName}` : "";
         toast({ title: count > 1 ? `${count} sessions scheduled${label}!` : `Session scheduled${label}!` });
+        if (insertedIds?.length) {
+          setUndoIds(insertedIds);
+          setShowUndo(true);
+          if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+          undoTimerRef.current = setTimeout(() => setShowUndo(false), 10000);
+        }
       }
       setShowForm(false);
       resetForm();
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const undoMut = useMutation({
+    mutationFn: async () => {
+      if (!undoIds.length) return;
+      const { error } = await supabase.from("coach_schedule").delete().in("id", undoIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
+      setShowUndo(false);
+      setUndoIds([]);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      toast({ title: "Undone." });
+    },
+    onError: (e: Error) => toast({ title: "Undo failed", description: e.message, variant: "destructive" }),
   });
 
   const deleteMut = useMutation({
@@ -751,6 +780,17 @@ const CoachSchedule = () => {
           <p className="text-muted-foreground mt-1">Click any day to add a session. Drag to reschedule.</p>
         </div>
         <div className="flex items-center gap-2">
+          {showUndo && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+              onClick={() => undoMut.mutate()}
+              disabled={undoMut.isPending}
+            >
+              <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Undo
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
