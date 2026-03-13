@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, Loader2, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, X, RefreshCw, Copy, Film, Activity, Sparkles, Lock, BookOpen, BookMarked, AlertTriangle, TrendingUp, ShieldAlert, UserPlus, MessageSquare, QrCode } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, ChevronLeft, Loader2, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, X, RefreshCw, Copy, Film, Activity, Sparkles, Lock, BookOpen, BookMarked, AlertTriangle, TrendingUp, ShieldAlert, UserPlus, MessageSquare, QrCode, Pencil, Check } from "lucide-react";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
 import AthleteVideoSubmissions from "@/components/AthleteVideoSubmissions";
@@ -37,50 +37,50 @@ const AI_WORKOUT_DRILLS: Record<string, { name: string; rep_scheme: string; inst
   "Arm Strength": [
     { name: "Band Pull-Aparts", rep_scheme: "3×15", instructions: "Hold band shoulder-width, pull apart keeping arms straight, squeeze shoulder blades." },
     { name: "External Rotation with Band", rep_scheme: "3×12 each arm", instructions: "90/90 position with band, rotate forearm up and back, controlled motion." },
-    { name: "Forearm Pronation/Supination", rep_scheme: "3×15 each way", instructions: "Arm extended, rotate palm up then down with light dumbbell." },
-    { name: "Wrist Curls", rep_scheme: "3×20", instructions: "Seated, forearm on thigh, curl wrist up and lower slowly." },
-    { name: "Towel Drill", rep_scheme: "3×10", instructions: "Hold towel at end, go through full throwing motion focusing on release point." },
-    { name: "Medicine Ball Wall Throws", rep_scheme: "3×10", instructions: "Stand 3 ft from wall, rotate and throw ball into wall, catch on rebound." },
-    { name: "Overhead Press", rep_scheme: "3×10", instructions: "Light weight, press overhead with full extension, lower controlled." },
-    { name: "Long Toss Simulation", rep_scheme: "10 min", instructions: "Full throwing motion without ball; focus on hip rotation and follow-through." },
-    { name: "Shoulder Y-T-W", rep_scheme: "3×10 each position", instructions: "Prone on bench, raise arms to Y, T, and W positions with light weight." },
-    { name: "Hammer Curls", rep_scheme: "3×12", instructions: "Neutral grip, curl dumbbell keeping elbow tucked, lower slowly." },
+    { name: "Shadow Throwing Mechanics", rep_scheme: "3×10", instructions: "Stand in athletic stance and go through full throwing motion at game speed. Focus on hip-to-shoulder sequence, arm path, and follow-through. No ball needed." },
+    { name: "Wrist Curls", rep_scheme: "3×20", instructions: "Seated, forearm on thigh, curl wrist up and lower slowly. Bodyweight only — no weight needed." },
+    { name: "Towel Drill", rep_scheme: "3×10", instructions: "Hold towel at end, go through full throwing motion focusing on release point and wrist snap." },
+    { name: "Towel Snap Throws", rep_scheme: "3×10 each side", instructions: "Hold one end of a household towel. Rotate your core and snap it explosively across your body, simulating throwing force with full hip drive." },
+    { name: "Pike Push-Up", rep_scheme: "3×10", instructions: "Start in downward dog position with hips high. Bend elbows to lower head toward floor, then press back up. Builds shoulder stability and strength." },
+    { name: "Long Toss Simulation", rep_scheme: "10 min", instructions: "Full throwing motion without ball; focus on hip rotation and follow-through. Gradually increase effort level each set." },
+    { name: "Floor Y-T-W", rep_scheme: "3×10 each position", instructions: "Lie face down, arms fully extended. Lift arms to form Y, then T, then W shapes. Squeeze shoulder blades together and hold 1 sec each. No equipment needed." },
+    { name: "Diamond Push-Up", rep_scheme: "3×8", instructions: "Place hands close together forming a diamond shape on the floor. Lower chest to hands with elbows tucked close to body, then press back up. Builds triceps and shoulder stability." },
   ],
   "Footwork & Agility": [
-    { name: "Ladder In/Out Drill", rep_scheme: "4×20 yds", instructions: "Step in and out of each ladder box, stay on balls of feet." },
-    { name: "T-Cone Drill", rep_scheme: "5 reps", instructions: "Sprint 5 yds, shuffle left 5 yds, shuffle right 10 yds, shuffle back, backpedal to start." },
-    { name: "Lateral Shuffle", rep_scheme: "3×30 sec", instructions: "Low stance, shuffle laterally without crossing feet. Touch cone on each end." },
-    { name: "Box Jumps", rep_scheme: "3×8", instructions: "Jump to box landing softly with both feet, step back down, reset." },
-    { name: "Lateral Bounds", rep_scheme: "3×10 each side", instructions: "Jump laterally off one foot, land on opposite, stick for 1 second." },
+    { name: "Ladder In/Out Drill", rep_scheme: "4×20 yds", instructions: "Step in and out of each ladder box (or use chalk/tape lines), stay on balls of feet." },
+    { name: "T-Cone Drill", rep_scheme: "5 reps", instructions: "Sprint 5 yds, shuffle left 5 yds, shuffle right 10 yds, shuffle back, backpedal to start. Use any markers." },
+    { name: "Lateral Shuffle", rep_scheme: "3×30 sec", instructions: "Low stance, shuffle laterally without crossing feet. Touch a marker on each end." },
+    { name: "Squat Jumps", rep_scheme: "3×8", instructions: "Lower into squat position then explode up as high as possible. Land softly with knees bent, absorb impact through hips. No equipment needed." },
+    { name: "Lateral Bounds", rep_scheme: "3×10 each side", instructions: "Jump laterally off one foot, land on opposite foot, stick the landing for 1 second, then repeat." },
     { name: "High Knees", rep_scheme: "3×20 sec", instructions: "Drive knees to hip height alternately, pump arms, stay on balls of feet." },
-    { name: "Reactive Sprint", rep_scheme: "6×10 yds", instructions: "React to verbal cue and sprint to assigned side. Focus on first step quickness." },
-    { name: "Broad Jumps", rep_scheme: "3×5", instructions: "Two-foot takeoff, jump as far forward as possible, land softly." },
-    { name: "Drop-Step Drill", rep_scheme: "4×reps", instructions: "Shuffle 3 steps, drop to fielding position, pop back up and reset." },
-    { name: "Sprint-Stop-Sprint", rep_scheme: "5 reps", instructions: "Sprint 10 yds, decelerate to stop, plant and sprint back. Control deceleration." },
+    { name: "Reactive Sprint", rep_scheme: "6×10 yds", instructions: "React to a self-set timer or verbal cue, sprint to assigned side. Focus on first step quickness." },
+    { name: "Broad Jumps", rep_scheme: "3×5", instructions: "Two-foot takeoff, jump as far forward as possible, land softly and stick." },
+    { name: "Drop-Step Drill", rep_scheme: "4×10 reps", instructions: "Shuffle 3 steps, drop to fielding position, pop back up and reset quickly." },
+    { name: "Sprint-Stop-Sprint", rep_scheme: "5 reps", instructions: "Sprint 10 yds, decelerate to a full stop, plant and sprint back. Control the deceleration." },
   ],
   "Conditioning": [
-    { name: "Base Running Sprints", rep_scheme: "3 rounds", instructions: "90-ft sprints simulating bases. Time each round, 30 sec rest between." },
-    { name: "Fartlek Sprints", rep_scheme: "10 min", instructions: "Alternate 30 sec easy jog with 15 sec max effort sprint. Maintain form." },
-    { name: "Suicide Runs", rep_scheme: "4 reps", instructions: "Sprint to 10-yd marker and back, 20-yd and back, 30-yd and back. Rest 90 sec." },
+    { name: "Baseline Sprints", rep_scheme: "3 rounds", instructions: "Sprint 30–90 ft at full effort. Time each round, rest 30 sec between. Simulate game-speed burst." },
+    { name: "Fartlek Sprints", rep_scheme: "10 min", instructions: "Alternate 30 sec easy jog with 15 sec max effort sprint. Maintain form throughout." },
+    { name: "Suicide Runs", rep_scheme: "4 reps", instructions: "Sprint to 10-yd marker and back, 20-yd and back, 30-yd and back. Rest 90 sec between each." },
     { name: "Mountain Climbers", rep_scheme: "3×30 sec", instructions: "Plank position, drive knees to chest alternately at speed while maintaining form." },
-    { name: "Burpees", rep_scheme: "3×10", instructions: "Drop to push-up, press up, jump feet to hands, explode up with hands overhead." },
-    { name: "Jump Rope", rep_scheme: "3×2 min", instructions: "Consistent pace, stay on balls of feet, wrists drive the rope." },
-    { name: "Sprint Ladders", rep_scheme: "1 set", instructions: "Sprint 10, 20, 30, 40, 30, 20, 10 yds with 30 sec rest between each." },
-    { name: "Bear Crawls", rep_scheme: "3×20 yds", instructions: "Crawl on all fours keeping hips low, drive knees close to elbows." },
+    { name: "Burpees", rep_scheme: "3×10", instructions: "Drop to push-up position, press up, jump feet to hands, explode up with hands overhead." },
+    { name: "Jump Rope (or Jump Rope Simulation)", rep_scheme: "3×2 min", instructions: "Consistent pace, stay on balls of feet. If no rope, mimic the jumping rhythm — same conditioning benefit." },
+    { name: "Sprint Ladders", rep_scheme: "1 set", instructions: "Sprint 10, 20, 30, 40, 30, 20, 10 yds with 30 sec rest between each distance." },
+    { name: "Bear Crawls", rep_scheme: "3×20 yds", instructions: "Crawl on all fours keeping hips low and level, drive knees close to elbows." },
     { name: "Plank Hold", rep_scheme: "3×45 sec", instructions: "Forearms on ground, body straight, squeeze glutes and core, breathe steadily." },
-    { name: "Broad Jump to Sprint", rep_scheme: "5 reps", instructions: "Two-foot broad jump then immediately sprint 10 yds. Explosive transition." },
+    { name: "Broad Jump to Sprint", rep_scheme: "5 reps", instructions: "Two-foot broad jump then immediately sprint 10 yds. Focus on explosive transition from landing to sprint." },
   ],
   "Core Strength": [
-    { name: "Dead Bug", rep_scheme: "3×10 each side", instructions: "Lie on back, arms up, lower opposite arm/leg simultaneously, keep low back flat." },
-    { name: "Pallof Press", rep_scheme: "3×12 each side", instructions: "Band at chest height, press straight out and hold 2 sec, resist rotation." },
-    { name: "Rotational Cable Chops", rep_scheme: "3×10 each side", instructions: "Pull from high to low across body, engage obliques, feet planted." },
-    { name: "Hollow Body Hold", rep_scheme: "3×30 sec", instructions: "Arms overhead, legs raised, lower back pressed into floor, hold." },
-    { name: "Med Ball Rotational Throws", rep_scheme: "3×10 each side", instructions: "Rotate away from wall, throw into wall, catch and reset." },
-    { name: "Side Plank Hip Dip", rep_scheme: "3×10 each side", instructions: "Side plank, dip hip to floor and raise, control the motion." },
-    { name: "Bird Dog", rep_scheme: "3×10 each side", instructions: "On all fours, extend opposite arm and leg, hold 2 sec, keep back flat." },
-    { name: "Russian Twists", rep_scheme: "3×20", instructions: "Seated, feet off ground, twist torso side to side with weight, controlled." },
-    { name: "Copenhagen Plank", rep_scheme: "3×20 sec each side", instructions: "Side plank with top foot on elevated surface, bottom leg raised." },
-    { name: "Ab Wheel Rollout", rep_scheme: "3×10", instructions: "Roll forward to near-flat position, engage core to return, control throughout." },
+    { name: "Dead Bug", rep_scheme: "3×10 each side", instructions: "Lie on back, arms up, lower opposite arm/leg simultaneously, keep low back pressed flat." },
+    { name: "Pallof Press", rep_scheme: "3×12 each side", instructions: "Anchor a resistance band at chest height, press straight out and hold 2 sec, resist rotation." },
+    { name: "Lying Windshield Wipers", rep_scheme: "3×10 each side", instructions: "Lie on back, raise legs vertical. Lower both legs slowly to one side, stopping before they touch the floor. Return and repeat. No equipment needed." },
+    { name: "Hollow Body Hold", rep_scheme: "3×30 sec", instructions: "Arms overhead, legs raised slightly, lower back pressed into floor. Hold tension throughout." },
+    { name: "Explosive Rotational Plank", rep_scheme: "3×10 each side", instructions: "From push-up position, drive one knee explosively across your body toward the opposite elbow, rotating hip and core. Return and repeat." },
+    { name: "Side Plank Hip Dip", rep_scheme: "3×10 each side", instructions: "Side plank position, dip hip to floor and raise back up. Control the motion — no dropping." },
+    { name: "Bird Dog", rep_scheme: "3×10 each side", instructions: "On all fours, extend opposite arm and leg simultaneously, hold 2 sec, keep back flat." },
+    { name: "Russian Twists", rep_scheme: "3×20", instructions: "Seated, feet off ground, lean back slightly. Twist torso side to side through full range. Keep movement slow and controlled." },
+    { name: "Copenhagen Plank", rep_scheme: "3×20 sec each side", instructions: "Side plank with top foot resting on a chair or step, bottom leg raised. Squeeze inner thigh." },
+    { name: "Inchworm Push-Up", rep_scheme: "3×8", instructions: "Stand tall, hinge forward and walk hands out to a plank, do 1 push-up, walk feet back to hands, stand. That's 1 rep. No equipment needed." },
   ],
   "Mental Reps": [
     { name: "Visualization Walk-Through", rep_scheme: "10 min", instructions: "Eyes closed, visualize 10 perfect reps at your position in full detail: sights, sounds, feel." },
@@ -146,6 +146,15 @@ const CoachAthletes = () => {
   const [showAiGenDialog, setShowAiGenDialog] = useState(false);
   const [aiGenFocus, setAiGenFocus] = useState("Arm Strength");
   const [aiGenDuration, setAiGenDuration] = useState("30");
+  const [aiGenStep, setAiGenStep] = useState<"config" | "preview">("config");
+  const [generatedDrills, setGeneratedDrills] = useState<{ key: string; name: string; rep_scheme: string; instructions: string }[]>([]);
+  const [editingDrillKey, setEditingDrillKey] = useState<string | null>(null);
+  const [editDrillName, setEditDrillName] = useState("");
+  const [editDrillReps, setEditDrillReps] = useState("");
+  const [editDrillInstructions, setEditDrillInstructions] = useState("");
+  const [customDrillName, setCustomDrillName] = useState("");
+  const [customDrillReps, setCustomDrillReps] = useState("");
+  const [customDrillInstructions, setCustomDrillInstructions] = useState("");
 
   // Add athlete form
   const [newFirstName, setNewFirstName] = useState("");
@@ -503,18 +512,31 @@ const CoachAthletes = () => {
     },
   });
 
+  const resetAiGenDialog = () => {
+    setAiGenStep("config");
+    setGeneratedDrills([]);
+    setEditingDrillKey(null);
+    setCustomDrillName("");
+    setCustomDrillReps("");
+    setCustomDrillInstructions("");
+    setShowAiGenDialog(false);
+  };
+
+  const buildWorkoutPreview = () => {
+    const pool = AI_WORKOUT_DRILLS[aiGenFocus] ?? AI_WORKOUT_DRILLS["Conditioning"];
+    const count = DURATION_DRILL_COUNT[aiGenDuration] ?? 5;
+    setGeneratedDrills(pool.slice(0, count).map((d, i) => ({ key: `d-${Date.now()}-${i}`, ...d })));
+    setAiGenStep("preview");
+  };
+
   const generateAiWorkout = useMutation({
     mutationFn: async ({ athleteId, athleteName }: { athleteId: string; athleteName: string }) => {
-      const drillPool = AI_WORKOUT_DRILLS[aiGenFocus] ?? AI_WORKOUT_DRILLS["Conditioning"];
-      const count = DURATION_DRILL_COUNT[aiGenDuration] ?? 5;
-      const selectedDrills = drillPool.slice(0, count);
-
       // 1. Create the program
       const { data: program, error: pErr } = await supabase.from("programs").insert({
         coach_id: user!.id,
         sport_id: selectedAthlete?.sport_id || sportConfigs[0]?.id || null,
-        name: `${athleteName}: AI ${aiGenFocus} (${aiGenDuration} min)`,
-        description: `AI-generated ${aiGenDuration}-minute ${aiGenFocus.toLowerCase()} workout.`,
+        name: `${athleteName}: ${aiGenFocus} (${aiGenDuration} min)`,
+        description: `${aiGenDuration}-minute ${aiGenFocus.toLowerCase()} workout.`,
         skill_level: "1",
         is_published: true,
       }).select().single();
@@ -529,16 +551,18 @@ const CoachAthletes = () => {
       }).select().single();
       if (wErr) throw wErr;
 
-      // 3. Insert drills
-      const drillRows = selectedDrills.map((d, i) => ({
+      // 3. Insert the (possibly edited) drills
+      const drillRows = generatedDrills.map((d, i) => ({
         workout_id: workout.id,
         name: d.name,
         rep_scheme: d.rep_scheme,
         instructions: d.instructions,
         order_index: i,
       }));
-      const { error: dErr } = await supabase.from("drills").insert(drillRows);
-      if (dErr) throw dErr;
+      if (drillRows.length) {
+        const { error: dErr } = await supabase.from("drills").insert(drillRows);
+        if (dErr) throw dErr;
+      }
 
       // 4. Assign to athlete
       const { error: aErr } = await supabase.from("athlete_programs").insert({
@@ -550,8 +574,8 @@ const CoachAthletes = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
-      setShowAiGenDialog(false);
-      toast({ title: "Workout generated and assigned!" });
+      resetAiGenDialog();
+      toast({ title: "Workout assigned!", description: "The athlete can now see it in their dashboard." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -2229,67 +2253,215 @@ const CoachAthletes = () => {
       />
 
       {/* AI Generate Workout Dialog */}
-      <Dialog open={showAiGenDialog} onOpenChange={setShowAiGenDialog}>
-        <DialogContent className="max-w-sm">
+      <Dialog open={showAiGenDialog} onOpenChange={(open) => { if (!open) resetAiGenDialog(); }}>
+        <DialogContent className={aiGenStep === "preview" ? "max-w-lg max-h-[85vh] overflow-y-auto" : "max-w-sm"}>
           <DialogHeader>
             <DialogTitle className="font-['Space_Grotesk'] flex items-center gap-2">
-              <Sparkles className="h-4 w-4" /> AI Generate Workout
+              <Sparkles className="h-4 w-4" />
+              {aiGenStep === "config" ? "Generate At-Home Workout" : `${aiGenFocus} — ${aiGenDuration} min`}
             </DialogTitle>
             <DialogDescription>
-              Build a focused at-home workout and assign it instantly.
+              {aiGenStep === "config"
+                ? "All exercises are bodyweight or resistance-band only — no free weights needed."
+                : "Review and edit the exercises below, then assign to the athlete."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Focus Area</Label>
-              <Select value={aiGenFocus} onValueChange={setAiGenFocus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {AI_FOCUS_AREAS.map((area) => (
-                    <SelectItem key={area} value={area}>{area}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Duration</Label>
-              <Select value={aiGenDuration} onValueChange={setAiGenDuration}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="45">45 minutes</SelectItem>
-                  <SelectItem value="60">60 minutes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {selectedAthlete && (
-              <p className="text-xs text-muted-foreground">
-                Will be assigned to{" "}
-                <span className="font-medium">
-                  {selectedAthlete.profile?.first_name} {selectedAthlete.profile?.last_name}
-                </span>
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowAiGenDialog(false)}>Cancel</Button>
-            <Button
-              onClick={() => {
-                if (!selectedAthlete) return;
-                generateAiWorkout.mutate({
-                  athleteId: selectedAthlete.athlete_user_id,
-                  athleteName: `${selectedAthlete.profile?.first_name ?? ""} ${selectedAthlete.profile?.last_name ?? ""}`.trim(),
-                });
-              }}
-              disabled={generateAiWorkout.isPending}
-            >
-              {generateAiWorkout.isPending ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating...</>
-              ) : (
-                <><Sparkles className="h-4 w-4 mr-2" /> Generate & Assign</>
+
+          {/* ── Step 1: Config ── */}
+          {aiGenStep === "config" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Focus Area</Label>
+                <Select value={aiGenFocus} onValueChange={setAiGenFocus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {AI_FOCUS_AREAS.map((area) => (
+                      <SelectItem key={area} value={area}>{area}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Duration</Label>
+                <Select value={aiGenDuration} onValueChange={setAiGenDuration}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 min — {DURATION_DRILL_COUNT["15"]} exercises</SelectItem>
+                    <SelectItem value="30">30 min — {DURATION_DRILL_COUNT["30"]} exercises</SelectItem>
+                    <SelectItem value="45">45 min — {DURATION_DRILL_COUNT["45"]} exercises</SelectItem>
+                    <SelectItem value="60">60 min — {DURATION_DRILL_COUNT["60"]} exercises</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedAthlete && (
+                <p className="text-xs text-muted-foreground">
+                  Will be assigned to{" "}
+                  <span className="font-medium">
+                    {selectedAthlete.profile?.first_name} {selectedAthlete.profile?.last_name}
+                  </span>
+                </p>
               )}
-            </Button>
+            </div>
+          )}
+
+          {/* ── Step 2: Preview & Edit ── */}
+          {aiGenStep === "preview" && (
+            <div className="space-y-3">
+              {/* Drill list */}
+              {generatedDrills.map((drill) => (
+                <div key={drill.key} className="rounded-lg border bg-secondary/20 p-3 space-y-1.5">
+                  {editingDrillKey === drill.key ? (
+                    /* Inline edit mode */
+                    <div className="space-y-2">
+                      <Input
+                        value={editDrillName}
+                        onChange={(e) => setEditDrillName(e.target.value)}
+                        className="h-8 text-sm font-medium"
+                        placeholder="Exercise name"
+                      />
+                      <Input
+                        value={editDrillReps}
+                        onChange={(e) => setEditDrillReps(e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="Reps / sets / duration"
+                      />
+                      <Input
+                        value={editDrillInstructions}
+                        onChange={(e) => setEditDrillInstructions(e.target.value)}
+                        className="h-7 text-xs"
+                        placeholder="Instructions (optional)"
+                      />
+                      <div className="flex gap-1.5">
+                        <Button size="sm" className="h-7 text-xs px-2" onClick={() => {
+                          setGeneratedDrills((prev) => prev.map((d) =>
+                            d.key === drill.key
+                              ? { ...d, name: editDrillName || d.name, rep_scheme: editDrillReps || d.rep_scheme, instructions: editDrillInstructions }
+                              : d
+                          ));
+                          setEditingDrillKey(null);
+                        }}>
+                          <Check className="h-3 w-3 mr-1" /> Save
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingDrillKey(null)}>
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Display mode */
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium leading-tight">{drill.name}</p>
+                        <p className="text-xs text-primary font-medium mt-0.5">{drill.rep_scheme}</p>
+                        {drill.instructions && (
+                          <p className="text-xs text-muted-foreground mt-1 leading-snug">{drill.instructions}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            setEditingDrillKey(drill.key);
+                            setEditDrillName(drill.name);
+                            setEditDrillReps(drill.rep_scheme);
+                            setEditDrillInstructions(drill.instructions);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive hover:text-destructive"
+                          onClick={() => setGeneratedDrills((prev) => prev.filter((d) => d.key !== drill.key))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Add custom exercise */}
+              <div className="rounded-lg border border-dashed p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Add Custom Exercise</p>
+                <Input
+                  value={customDrillName}
+                  onChange={(e) => setCustomDrillName(e.target.value)}
+                  placeholder="Exercise name"
+                  className="h-8 text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    value={customDrillReps}
+                    onChange={(e) => setCustomDrillReps(e.target.value)}
+                    placeholder="e.g. 3×10"
+                    className="h-8 text-sm"
+                  />
+                  <Input
+                    value={customDrillInstructions}
+                    onChange={(e) => setCustomDrillInstructions(e.target.value)}
+                    placeholder="Instructions (optional)"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full h-8 text-xs"
+                  disabled={!customDrillName.trim()}
+                  onClick={() => {
+                    setGeneratedDrills((prev) => [...prev, {
+                      key: `custom-${Date.now()}`,
+                      name: customDrillName.trim(),
+                      rep_scheme: customDrillReps.trim() || "As prescribed",
+                      instructions: customDrillInstructions.trim(),
+                    }]);
+                    setCustomDrillName("");
+                    setCustomDrillReps("");
+                    setCustomDrillInstructions("");
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Add Exercise
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            {aiGenStep === "config" ? (
+              <>
+                <Button variant="ghost" onClick={resetAiGenDialog}>Cancel</Button>
+                <Button onClick={buildWorkoutPreview}>
+                  <Sparkles className="h-4 w-4 mr-2" /> Preview Workout
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={() => { setAiGenStep("config"); setEditingDrillKey(null); }}>
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Back
+                </Button>
+                <Button
+                  disabled={generatedDrills.length === 0 || generateAiWorkout.isPending}
+                  onClick={() => {
+                    if (!selectedAthlete) return;
+                    generateAiWorkout.mutate({
+                      athleteId: selectedAthlete.athlete_user_id,
+                      athleteName: `${selectedAthlete.profile?.first_name ?? ""} ${selectedAthlete.profile?.last_name ?? ""}`.trim(),
+                    });
+                  }}
+                >
+                  {generateAiWorkout.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Assigning...</>
+                  ) : (
+                    <>Assign to {selectedAthlete?.profile?.first_name ?? "Athlete"} ({generatedDrills.length} exercises)</>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

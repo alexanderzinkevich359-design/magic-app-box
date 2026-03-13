@@ -300,6 +300,11 @@ const CoachSchedule = () => {
 
   const today = startOfDay(new Date());
 
+  const getAthleteName = (id: string) => athletes.find((a) => a.id === id)?.name || "Unknown";
+  const getTeamForAthlete = (athleteId: string) => teams.find((t) => t.memberIds.includes(athleteId)) ?? null;
+  const entryTeamKey = (e: ScheduleEntry): string =>
+    e.team_id ?? getTeamForAthlete(e.athlete_id)?.id ?? `solo_${e.athlete_id}`;
+
   const upcomingSessions = useMemo(() => {
     const cutoff = addDays(today, 14);
     const filtered = schedule.filter((e) => {
@@ -378,17 +383,6 @@ const CoachSchedule = () => {
     const useInSeason = (selectedTeam && isTeamInSeason(selectedTeam)) || inSeasonTeams.length > 0;
     return useInSeason ? presets.inSeason : presets.offSeason;
   }, [sportConfig, selectedTeam, inSeasonTeams]);
-
-  const getAthleteName = (id: string) => athletes.find((a) => a.id === id)?.name || "Unknown";
-  const getTeamForAthlete = (athleteId: string) => teams.find((t) => t.memberIds.includes(athleteId)) ?? null;
-
-  /**
-   * Stable team discriminator for a schedule entry.
-   * Prefers the stored team_id; falls back to deriving from athlete membership
-   * so that old rows without team_id don't merge across teams.
-   */
-  const entryTeamKey = (e: ScheduleEntry): string =>
-    e.team_id ?? getTeamForAthlete(e.athlete_id)?.id ?? `solo_${e.athlete_id}`;
 
   /** Return all row IDs that belong to the same session group as `entry`. */
   const getGroupIds = (entry: ScheduleEntry): string[] => {
@@ -789,10 +783,10 @@ const CoachSchedule = () => {
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
         {/* Calendar grid */}
         <Card>
-          <CardContent className="p-2 sm:p-4">
+          <CardContent className="p-2 sm:p-5">
             {isLoading ? (
               <div className="flex justify-center py-16">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -804,7 +798,7 @@ const CoachSchedule = () => {
                     <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">{d}</div>
                   ))}
                 </div>
-                <div className="grid grid-cols-7 auto-rows-[minmax(90px,1fr)] border-t border-l">
+                <div className="grid grid-cols-7 auto-rows-[minmax(110px,1fr)] border-t border-l">
                   {Array.from({ length: startDayOfWeek }).map((_, i) => (
                     <div key={`empty-${i}`} className="border-r border-b bg-secondary/20" />
                   ))}
@@ -844,7 +838,7 @@ const CoachSchedule = () => {
                               }`}
                               title={`${entry.status === "canceled" ? "CANCELED: " : ""}${
                                 entry.session_type === "game"
-                                  ? `🏆 ${entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}${entry.game_location ? ` · ${entry.game_location}` : ""}${entry.game_home_away ? ` (${entry.game_home_away})` : ""}`
+                                  ? `${entry.game_home_away === "away" ? "✈️" : "🏠"} ${entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}${entry.game_location ? ` · ${entry.game_location}` : ""}`
                                   : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
                               } ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
                             >
@@ -853,7 +847,10 @@ const CoachSchedule = () => {
                                 : entry.start_time && <span className="font-medium">{entry.start_time.slice(0, 5)} </span>
                               }
                               {entry.session_type === "game"
-                                ? <><Trophy className="h-2.5 w-2.5 inline-block mr-0.5 mb-0.5" />{entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}</>
+                                ? <>
+                                    <span className="mr-0.5">{entry.game_home_away === "away" ? "✈️" : "🏠"}</span>
+                                    {entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}
+                                  </>
                                 : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
                               }
                             </div>
@@ -966,7 +963,7 @@ const CoachSchedule = () => {
                     >
                       <div className="flex items-center gap-2">
                         {entry.session_type === "game"
-                          ? <Trophy className="w-3 h-3 shrink-0 text-amber-400" />
+                          ? <span className="text-sm leading-none shrink-0">{entry.game_home_away === "away" ? "✈️" : "🏠"}</span>
                           : <span className={`w-2 h-2 rounded-full shrink-0 ${getColorClass(entry.color || "default").split(" ")[0]}`} />
                         }
                         <p className={`text-xs font-medium truncate ${entry.session_type === "game" ? "text-amber-300" : ""}`}>
@@ -976,10 +973,9 @@ const CoachSchedule = () => {
                           }
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
+                      <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">
                         {format(parseISO(entry.scheduled_date), "EEE, MMM d")}
                         {entry.start_time && ` · ${entry.start_time.slice(0, 5)}`}
-                        {entry.session_type === "game" && entry.game_home_away && ` · ${entry.game_home_away}`}
                       </p>
                       <p className="text-[10px] text-muted-foreground pl-4">
                         {entry.session_type === "game"
