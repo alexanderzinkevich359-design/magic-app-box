@@ -172,8 +172,6 @@ const CoachSchedule = () => {
   // Quick schedule team selection (sidebar)
   const [quickScheduleTeamId, setQuickScheduleTeamId] = useState<string>("");
 
-  // Edit mode: pending team reassignment (requires explicit confirmation)
-  const [pendingReassignTeamId, setPendingReassignTeamId] = useState<string>("");
 
   // Calendar team filter — null = all teams
   const [calendarTeamFilter, setCalendarTeamFilter] = useState<string | null>(null);
@@ -1152,13 +1150,11 @@ const CoachSchedule = () => {
                 {/* Team dropdown — edit mode */}
                 {editEntry && (
                   <Select
-                    value={pendingReassignTeamId || formTeamId}
+                    value={formTeamId}
                     onValueChange={(newId) => {
-                      if (newId !== formTeamId) {
-                        setPendingReassignTeamId(newId);
-                      } else {
-                        setPendingReassignTeamId("");
-                      }
+                      setFormTeamId(newId);
+                      const newTeam = teams.find((t) => t.id === newId);
+                      if (newTeam) setFormAthleteIds(newTeam.memberIds);
                     }}
                   >
                     <SelectTrigger>
@@ -1175,45 +1171,10 @@ const CoachSchedule = () => {
                 )}
 
                 {/* In-season indicator */}
-                {selectedTeam && isTeamInSeason(selectedTeam) && !pendingReassignTeamId && (
+                {selectedTeam && isTeamInSeason(selectedTeam) && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-400">
                     <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
                     This team is currently in season
-                  </div>
-                )}
-
-                {/* Confirmation banner for edit-mode team change */}
-                {editEntry && pendingReassignTeamId && (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 space-y-2">
-                    <p className="text-xs font-medium text-amber-400">
-                      Reassign to {teams.find((t) => t.id === pendingReassignTeamId)?.name}?
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      The current team's athletes will be replaced with{" "}
-                      {teams.find((t) => t.id === pendingReassignTeamId)?.name}'s full roster.
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          const newTeam = teams.find((t) => t.id === pendingReassignTeamId);
-                          setFormTeamId(pendingReassignTeamId);
-                          if (newTeam) setFormAthleteIds(newTeam.memberIds);
-                          setPendingReassignTeamId("");
-                        }}
-                      >
-                        Confirm reassignment
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => setPendingReassignTeamId("")}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
                   </div>
                 )}
               </div>
