@@ -1131,8 +1131,20 @@ const CoachAthletes = () => {
                       <CardTitle className="text-sm">Athlete Profile</CardTitle>
                     </CardHeader>
                     <CardContent className="px-4 pb-4 space-y-3">
-                      {/* Jersey # + Position */}
+                      {/* Sport + Jersey # */}
                       <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Sport</Label>
+                          <Select
+                            value={selectedAthlete.sport_id || ""}
+                            onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { sport_id: v, position: null } })}
+                          >
+                            <SelectTrigger className="h-8"><SelectValue placeholder="Set sport..." /></SelectTrigger>
+                            <SelectContent>
+                              {sportConfigs.map((s) => <SelectItem key={s.id} value={s.id}>{s.icon} {s.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <div className="space-y-1">
                           <Label className="text-xs text-muted-foreground uppercase tracking-wide">Jersey #</Label>
                           <Input
@@ -1143,18 +1155,23 @@ const CoachAthletes = () => {
                             onBlur={(e) => saveProfileEdit("jersey_number", e.target.value)}
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Position</Label>
-                          <Select
-                            value={selectedAthlete.position || ""}
-                            onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { position: v } })}
-                          >
-                            <SelectTrigger className="h-8"><SelectValue placeholder="Set position..." /></SelectTrigger>
-                            <SelectContent>
-                              {(athleteSportConfig?.positions ?? []).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      </div>
+
+                      {/* Position */}
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Position</Label>
+                        <Select
+                          value={selectedAthlete.position || ""}
+                          onValueChange={(v) => updateAthleteLink.mutate({ linkId: selectedAthlete.id, updates: { position: v } })}
+                          disabled={!athleteSportConfig}
+                        >
+                          <SelectTrigger className="h-8">
+                            <SelectValue placeholder={athleteSportConfig ? "Set position..." : "Set a sport first"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(athleteSportConfig?.positions ?? []).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Height + Weight */}
@@ -1490,6 +1507,9 @@ const CoachAthletes = () => {
                             </div>
                           )}
                         </div>
+                        {goalIsMeasurable && goalTitle.trim() && !goalTarget.trim() && (
+                          <p className="text-xs text-amber-400">Enter a target value to save this goal.</p>
+                        )}
                         <div className="flex gap-2 flex-wrap">
                           <Button
                             onClick={() => addGoalMutation.mutate({
