@@ -424,6 +424,7 @@ const CoachAthletes = () => {
       setShowGoalForm(false);
       toast({ title: "Goal set" });
     },
+    onError: (e: any) => toast({ title: "Failed to save goal", description: e.message, variant: "destructive" }),
   });
 
   const updateProgressMutation = useMutation({
@@ -606,13 +607,14 @@ const CoachAthletes = () => {
 
   const updateAthleteLink = useMutation({
     mutationFn: async ({ linkId, updates }: { linkId: string; updates: Record<string, any> }) => {
-      const { error } = await supabase.from("coach_athlete_links").update(updates).eq("id", linkId);
+      const { error } = await (supabase as any).from("coach_athlete_links").update(updates).eq("id", linkId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
       toast({ title: "Athlete updated" });
     },
+    onError: (e: any) => toast({ title: "Failed to update athlete", description: e.message, variant: "destructive" }),
   });
 
   // Sync profile edit fields when selected athlete changes
