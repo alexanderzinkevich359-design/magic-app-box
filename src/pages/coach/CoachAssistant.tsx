@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Loader2, RotateCcw, User } from "lucide-react";
+import { Bot, Send, Loader2, RotateCcw, User, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 type Message = {
   role: "user" | "assistant";
   content: string;
+  actionTaken?: boolean;
 };
 
 // ── Simple markdown-lite renderer ─────────────────────────────────────────────
@@ -92,6 +94,7 @@ const STARTERS = [
 
 const CoachAssistant = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -120,7 +123,11 @@ const CoachAssistant = () => {
       if (error) throw new Error(error.message);
       if (data?.error) throw new Error(data.error);
 
-      setMessages([...newMessages, { role: "assistant", content: data.content }]);
+      const invalidate: string[] = data.invalidate ?? [];
+      if (invalidate.length) {
+        invalidate.forEach((key: string) => queryClient.invalidateQueries({ queryKey: [key] }));
+      }
+      setMessages([...newMessages, { role: "assistant", content: data.content, actionTaken: invalidate.length > 0 }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       toast({ title: "Assistant error", description: msg, variant: "destructive" });
@@ -222,7 +229,14 @@ const CoachAssistant = () => {
                     {msg.role === "user" ? (
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                     ) : (
-                      <div className="space-y-0.5">{renderMarkdown(msg.content)}</div>
+                      <>
+                        <div className="space-y-0.5">{renderMarkdown(msg.content)}</div>
+                        {msg.actionTaken && (
+                          <p className="text-[10px] text-emerald-400 mt-1.5 flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" /> Applied to app
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

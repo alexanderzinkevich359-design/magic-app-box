@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle, Users, User, CheckSquare, XSquare } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useSportConfigById } from "@/hooks/useSportConfig";
 
-const SESSION_TYPES = ["practice", "game", "lesson", "assessment", "conditioning"] as const;
+const SESSION_TYPES = ["practice", "lesson", "assessment", "conditioning"] as const;
 const STATUSES = ["completed", "missed", "scheduled"] as const;
 
 const RPE_LABELS: Record<number, { label: string; color: string }> = {
@@ -98,13 +98,33 @@ const STRETCHING_SUGGESTIONS: Record<string, { name: string; description: string
   ],
 };
 
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type AthleteRow = {
+  id: string;
+  name: string;
+  position: string | null;
+  sport_id: string | null;
+};
+
+type TeamOption = {
+  id: string;
+  name: string;
+  memberIds: string[];
+};
+
+// ── Component ──────────────────────────────────────────────────────────────────
+
 const SessionLogger = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [submitted, setSubmitted] = useState(false);
 
-  // Form state
+  // ── Tab state ────────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<"individual" | "team">("individual");
+
+  // ── Individual form state ────────────────────────────────────────────────────
+  const [submitted, setSubmitted] = useState(false);
   const [athleteId, setAthleteId] = useState("");
   const [sessionDate, setSessionDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [sessionType, setSessionType] = useState<string>("practice");
@@ -117,12 +137,22 @@ const SessionLogger = () => {
   const [sorenessFlag, setSorenessFlag] = useState(false);
   const [injuryNote, setInjuryNote] = useState("");
   const [sorenessAreas, setSorenessAreas] = useState<string[]>([]);
-
-  // Pitcher-specific: pitch type counts
   const [pitchCounts, setPitchCounts] = useState<Record<string, string>>({});
 
-  // Fetch athletes with positions
-  const { data: athletes = [] } = useQuery({
+  // ── Team attendance state ─────────────────────────────────────────────────────
+  const [taTeamId, setTaTeamId] = useState("");
+  const [taDate, setTaDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [taType, setTaType] = useState<string>("practice");
+  const [taDuration, setTaDuration] = useState("");
+  const [taRpe, setTaRpe] = useState<string>("5");
+  const [taNotes, setTaNotes] = useState("");
+  // athleteId → "present" | "absent"
+  const [attendance, setAttendance] = useState<Record<string, "present" | "absent">>({});
+  const [taSubmitted, setTaSubmitted] = useState(false);
+
+  // ── Shared data ───────────────────────────────────────────────────────────────
+
+  const { data: athletes = [] } = useQuery<AthleteRow[]>({
     queryKey: ["coach-athletes-list", user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -148,9 +178,34 @@ const SessionLogger = () => {
     enabled: !!user,
   });
 
+  const { data: teams = [] } = useQuery<TeamOption[]>({
+    queryKey: ["coach-teams-attendance", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data: teamsData } = await (supabase as any)
+        .from("teams")
+        .select("id, name")
+        .eq("coach_id", user.id);
+      if (!teamsData?.length) return [];
+      const { data: members } = await (supabase as any)
+        .from("team_members")
+        .select("team_id, athlete_user_id")
+        .in("team_id", teamsData.map((t: any) => t.id));
+      return teamsData.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        memberIds: (members || [])
+          .filter((m: any) => m.team_id === t.id)
+          .map((m: any) => m.athlete_user_id as string),
+      }));
+    },
+    enabled: !!user,
+  });
+
+  // ── Individual form derived ───────────────────────────────────────────────────
+
   const selectedAthlete = athletes.find((a) => a.id === athleteId);
   const position = selectedAthlete?.position || null;
-
   const { data: sportConfig } = useSportConfigById(selectedAthlete?.sport_id ?? null);
   const sessionCfg = sportConfig?.session_config;
   const isPitchCountPos = !!position && (sessionCfg?.pitchCountPositions ?? []).includes(position);
@@ -159,7 +214,6 @@ const SessionLogger = () => {
   const effectiveThrowLabel = (position && sessionCfg?.throwLabelByPosition?.[position]) ?? sessionCfg?.throwLabel ?? null;
   const effectiveRepsLabel = (position && sessionCfg?.repsLabelByPosition?.[position]) ?? "Drill Reps";
 
-  // Compute total pitch count from individual pitch type counts
   const totalPitchCount = useMemo(() => {
     return Object.values(pitchCounts).reduce((sum, v) => sum + (parseInt(v) || 0), 0);
   }, [pitchCounts]);
@@ -168,13 +222,68 @@ const SessionLogger = () => {
     setPitchCounts((prev) => ({ ...prev, [type]: value }));
   };
 
+  // ── Team attendance derived ───────────────────────────────────────────────────
+
+  // Roster: team members if team selected, else all athletes
+  const taRoster: AthleteRow[] = useMemo(() => {
+    if (taTeamId) {
+      const team = teams.find((t) => t.id === taTeamId);
+      if (team) {
+        return athletes.filter((a) => team.memberIds.includes(a.id));
+      }
+    }
+    return athletes;
+  }, [taTeamId, teams, athletes]);
+
+  // Initialise / extend attendance map when roster changes
+  const ensureAttendance = (roster: AthleteRow[]) => {
+    setAttendance((prev) => {
+      const next = { ...prev };
+      roster.forEach((a) => {
+        if (!(a.id in next)) next[a.id] = "present";
+      });
+      return next;
+    });
+  };
+
+  const handleTeamChange = (teamId: string) => {
+    setTaTeamId(teamId);
+    const team = teams.find((t) => t.id === teamId);
+    const roster = team ? athletes.filter((a) => team.memberIds.includes(a.id)) : athletes;
+    setAttendance({});
+    ensureAttendance(roster);
+  };
+
+  // When roster first loads (no team selected), seed defaults
+  useMemo(() => {
+    if (!taTeamId && athletes.length > 0) {
+      ensureAttendance(athletes);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [athletes.length]);
+
+  const presentCount = taRoster.filter((a) => attendance[a.id] === "present").length;
+  const absentCount = taRoster.length - presentCount;
+
+  const markAll = (status: "present" | "absent") => {
+    const next: Record<string, "present" | "absent"> = {};
+    taRoster.forEach((a) => { next[a.id] = status; });
+    setAttendance((prev) => ({ ...prev, ...next }));
+  };
+
+  const toggleAttendance = (id: string) => {
+    setAttendance((prev) => ({
+      ...prev,
+      [id]: prev[id] === "present" ? "absent" : "present",
+    }));
+  };
+
+  // ── Mutations ─────────────────────────────────────────────────────────────────
+
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!user || !athleteId) throw new Error("Missing required fields");
-
       const finalPitchCount = isPitchCountPos ? totalPitchCount : 0;
-
-      // Build notes with pitch/serve breakdown
       let fullNotes = notes || "";
       if (isPitchCountPos && totalPitchCount > 0) {
         const breakdown = Object.entries(pitchCounts)
@@ -187,7 +296,6 @@ const SessionLogger = () => {
             : `Pitch Breakdown: ${breakdown}`;
         }
       }
-
       const { error } = await supabase.from("training_sessions").insert({
         coach_id: user.id,
         athlete_id: athleteId,
@@ -215,6 +323,41 @@ const SessionLogger = () => {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const taSubmitMut = useMutation({
+    mutationFn: async () => {
+      if (!user || taRoster.length === 0) throw new Error("No athletes to log");
+      // First athlete's sport_id as the session's sport — acceptable approximation for team sessions
+      const sportId = taRoster[0]?.sport_id ?? null;
+      const rows = taRoster.map((a) => ({
+        coach_id: user.id,
+        athlete_id: a.id,
+        sport_id: a.sport_id ?? sportId,
+        session_date: taDate,
+        session_type: taType,
+        status: attendance[a.id] === "absent" ? "missed" : "completed",
+        duration_min: taDuration ? parseInt(taDuration) : null,
+        pitch_count: 0,
+        throw_count: 0,
+        drill_reps: 0,
+        intensity: taRpe,
+        notes: taNotes || null,
+        soreness_flag: false,
+        injury_note: null,
+      }));
+      const { error } = await supabase.from("training_sessions").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["athlete-snapshots"] });
+      queryClient.invalidateQueries({ queryKey: ["detail-sessions"] });
+      setTaSubmitted(true);
+      toast({ title: `Attendance logged — ${presentCount} present, ${absentCount} absent.` });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  // ── Resets ────────────────────────────────────────────────────────────────────
+
   const resetForm = () => {
     setAthleteId("");
     setSessionDate(format(new Date(), "yyyy-MM-dd"));
@@ -231,6 +374,19 @@ const SessionLogger = () => {
     setPitchCounts({});
     setSubmitted(false);
   };
+
+  const resetTeamForm = () => {
+    setTaDate(format(new Date(), "yyyy-MM-dd"));
+    setTaType("practice");
+    setTaDuration("");
+    setTaRpe("5");
+    setTaNotes("");
+    setAttendance({});
+    ensureAttendance(taRoster);
+    setTaSubmitted(false);
+  };
+
+  // ── Success screens ───────────────────────────────────────────────────────────
 
   if (submitted) {
     return (
@@ -250,241 +406,473 @@ const SessionLogger = () => {
     );
   }
 
+  if (taSubmitted) {
+    return (
+      <DashboardLayout role="coach">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="h-16 w-16 rounded-full bg-emerald-500/15 flex items-center justify-center mb-4">
+            <CheckCircle className="h-8 w-8 text-emerald-400" />
+          </div>
+          <h2 className="text-2xl font-bold font-['Space_Grotesk'] mb-2">Attendance Logged!</h2>
+          <p className="text-muted-foreground mb-6">
+            {presentCount} present · {absentCount} absent
+          </p>
+          <div className="flex gap-3">
+            <Button onClick={resetTeamForm}>Log Another</Button>
+            <Button variant="outline" onClick={() => window.history.back()}>Back</Button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
   return (
     <DashboardLayout role="coach">
-      <div className="mb-8">
+      <div className="mb-6">
         <h1 className="text-3xl font-bold font-['Space_Grotesk']">Log Training Session</h1>
         <p className="text-muted-foreground mt-1">Record attendance, workload, and athlete status</p>
       </div>
 
-      <Card className="max-w-2xl">
-        <CardContent className="p-6 space-y-6">
-          {/* Athlete & date */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Athlete</Label>
-              <Select value={athleteId} onValueChange={(v) => { setAthleteId(v); setPitchCounts({}); }}>
-                <SelectTrigger><SelectValue placeholder="Select athlete" /></SelectTrigger>
-                <SelectContent>
-                  {athletes.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}{a.position ? ` · ${a.position}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {position && (
-                <Badge variant="outline" className="text-xs">{position}</Badge>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label>Date</Label>
-              <Input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
-            </div>
-          </div>
+      {/* ── Tab switcher ── */}
+      <div className="flex gap-1 mb-6 rounded-xl border bg-secondary/30 p-1 w-fit">
+        <button
+          onClick={() => setTab("individual")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            tab === "individual"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <User className="h-4 w-4" /> Individual
+        </button>
+        <button
+          onClick={() => setTab("team")}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            tab === "team"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Users className="h-4 w-4" /> Team Attendance
+        </button>
+      </div>
 
-          {/* Type & status */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={sessionType} onValueChange={setSessionType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {SESSION_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* RPE Scale */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <Label>RPE (Rate of Perceived Exertion)</Label>
-              <div className="flex items-center gap-2">
-                <span className={`text-lg font-bold font-['Space_Grotesk'] ${RPE_LABELS[parseInt(intensity)]?.color || ""}`}>
-                  {intensity}
-                </span>
-                <span className={`text-xs ${RPE_LABELS[parseInt(intensity)]?.color || "text-muted-foreground"}`}>
-                  {RPE_LABELS[parseInt(intensity)]?.label || ""}
-                </span>
-              </div>
-            </div>
-            <Slider
-              value={[parseInt(intensity)]}
-              onValueChange={(v) => setIntensity(String(v[0]))}
-              min={1}
-              max={10}
-              step={1}
-              className="w-full"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground px-1">
-              <span>1 - Rest</span>
-              <span>5 - Moderate</span>
-              <span>10 - All Out</span>
-            </div>
-          </div>
-
-          {/* Pitch/serve breakdown (sport config driven) */}
-          {hasPitchTypeUI && (
-            <Card className="border-primary/20 bg-primary/5">
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="text-sm font-['Space_Grotesk'] flex items-center justify-between">
-                  Pitch Breakdown
-                  <Badge variant="secondary" className="font-mono text-sm">
-                    Total: {totalPitchCount}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {pitchTypes.map((type) => (
-                    <div key={type} className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">{type}</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        placeholder="0"
-                        value={pitchCounts[type] || ""}
-                        onChange={(e) => updatePitchCount(type, e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* General workload: adapts by sport config */}
-          {athleteId && (
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">
-              Workload {position && <span className="text-xs text-muted-foreground font-normal ml-1">({position})</span>}
-            </Label>
-            <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Duration (min)</Label>
-                <Input type="number" min={0} placeholder="60" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
-              </div>
-
-              {effectiveThrowLabel !== null && (
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">{effectiveThrowLabel}</Label>
-                  <Input type="number" min={0} placeholder="0" value={throwCount} onChange={(e) => setThrowCount(e.target.value)} />
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">{effectiveRepsLabel}</Label>
-                <Input type="number" min={0} placeholder="0" value={drillReps} onChange={(e) => setDrillReps(e.target.value)} />
-              </div>
-            </div>
-          </div>
-          )}
-
-          {/* Soreness */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <Switch checked={sorenessFlag} onCheckedChange={(v) => { setSorenessFlag(v); if (!v) setSorenessAreas([]); }} />
-              <Label>Athlete reported soreness / injury</Label>
-            </div>
-            {sorenessFlag && (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Injury / Soreness Details</Label>
-                  <Input
-                    placeholder="e.g. Describe any soreness or discomfort"
-                    value={injuryNote}
-                    onChange={(e) => setInjuryNote(e.target.value)}
-                  />
-                </div>
-
-                {/* Soreness area selector */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Where is the soreness?</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {SORENESS_AREAS.map((area) => {
-                      const isSelected = sorenessAreas.includes(area);
-                      return (
-                        <Badge
-                          key={area}
-                          variant={isSelected ? "default" : "outline"}
-                          className={`cursor-pointer text-xs transition-colors ${isSelected ? "" : "hover:bg-secondary"}`}
-                          onClick={() =>
-                            setSorenessAreas((prev) =>
-                              isSelected ? prev.filter((a) => a !== area) : [...prev, area]
-                            )
-                          }
-                        >
-                          {area}
-                        </Badge>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Stretching suggestions based on selected soreness areas */}
-                {sorenessAreas.length > 0 && (
-                  <Card className="border-amber-500/20 bg-amber-500/5">
-                    <CardHeader className="pb-2 pt-3 px-4">
-                      <CardTitle className="text-sm font-['Space_Grotesk']">
-                        💪 Suggested Stretches & Recovery
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 space-y-3">
-                      {sorenessAreas.map((area) => {
-                        const stretches = STRETCHING_SUGGESTIONS[area];
-                        if (!stretches) return null;
-                        return (
-                          <div key={area}>
-                            <p className="text-xs font-semibold text-foreground mb-1.5">{area}</p>
-                            <div className="space-y-1.5">
-                              {stretches.map((s, idx) => (
-                                <div key={idx} className="rounded-md border bg-background/50 px-3 py-2">
-                                  <p className="text-sm font-medium">{s.name}</p>
-                                  <p className="text-xs text-muted-foreground">{s.description}</p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </CardContent>
-                  </Card>
+      {/* ════════════════════════════════════════════════════════════
+          INDIVIDUAL TAB (existing form)
+      ════════════════════════════════════════════════════════════ */}
+      {tab === "individual" && (
+        <Card className="max-w-2xl">
+          <CardContent className="p-6 space-y-6">
+            {/* Athlete & date */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Athlete</Label>
+                <Select value={athleteId} onValueChange={(v) => { setAthleteId(v); setPitchCounts({}); }}>
+                  <SelectTrigger><SelectValue placeholder="Select athlete" /></SelectTrigger>
+                  <SelectContent>
+                    {athletes.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}{a.position ? ` · ${a.position}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {position && (
+                  <Badge variant="outline" className="text-xs">{position}</Badge>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Type & status */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={sessionType} onValueChange={setSessionType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SESSION_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* RPE Scale */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>RPE (Rate of Perceived Exertion)</Label>
+                <div className="flex items-center gap-2">
+                  <span className={`text-lg font-bold font-['Space_Grotesk'] ${RPE_LABELS[parseInt(intensity)]?.color || ""}`}>
+                    {intensity}
+                  </span>
+                  <span className={`text-xs ${RPE_LABELS[parseInt(intensity)]?.color || "text-muted-foreground"}`}>
+                    {RPE_LABELS[parseInt(intensity)]?.label || ""}
+                  </span>
+                </div>
+              </div>
+              <Slider
+                value={[parseInt(intensity)]}
+                onValueChange={(v) => setIntensity(String(v[0]))}
+                min={1} max={10} step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground px-1">
+                <span>1 - Rest</span>
+                <span>5 - Moderate</span>
+                <span>10 - All Out</span>
+              </div>
+            </div>
+
+            {/* Pitch/serve breakdown (sport config driven) */}
+            {hasPitchTypeUI && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-2 pt-4 px-4">
+                  <CardTitle className="text-sm font-['Space_Grotesk'] flex items-center justify-between">
+                    Pitch Breakdown
+                    <Badge variant="secondary" className="font-mono text-sm">
+                      Total: {totalPitchCount}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {pitchTypes.map((type) => (
+                      <div key={type} className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">{type}</Label>
+                        <Input
+                          type="number" min={0} placeholder="0"
+                          value={pitchCounts[type] || ""}
+                          onChange={(e) => updatePitchCount(type, e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </div>
 
-          {/* Notes */}
-          <div className="space-y-2">
-            <Label>Session Notes (optional)</Label>
-            <Textarea placeholder="How did the session go?" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[80px]" />
-          </div>
+            {/* General workload */}
+            {athleteId && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Workload {position && <span className="text-xs text-muted-foreground font-normal ml-1">({position})</span>}
+                </Label>
+                <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Duration (min)</Label>
+                    <Input type="number" min={0} placeholder="60" value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
+                  </div>
+                  {effectiveThrowLabel !== null && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">{effectiveThrowLabel}</Label>
+                      <Input type="number" min={0} placeholder="0" value={throwCount} onChange={(e) => setThrowCount(e.target.value)} />
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">{effectiveRepsLabel}</Label>
+                    <Input type="number" min={0} placeholder="0" value={drillReps} onChange={(e) => setDrillReps(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            )}
 
-          <Button
-            onClick={() => saveMut.mutate()}
-            disabled={!athleteId || !sessionDate || saveMut.isPending}
-            className="w-full sm:w-auto"
-          >
-            {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            Log Session
-          </Button>
-        </CardContent>
-      </Card>
+            {/* Soreness */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <Switch checked={sorenessFlag} onCheckedChange={(v) => { setSorenessFlag(v); if (!v) setSorenessAreas([]); }} />
+                <Label>Athlete reported soreness / injury</Label>
+              </div>
+              {sorenessFlag && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Injury / Soreness Details</Label>
+                    <Input
+                      placeholder="e.g. Describe any soreness or discomfort"
+                      value={injuryNote}
+                      onChange={(e) => setInjuryNote(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Where is the soreness?</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {SORENESS_AREAS.map((area) => {
+                        const isSelected = sorenessAreas.includes(area);
+                        return (
+                          <Badge
+                            key={area}
+                            variant={isSelected ? "default" : "outline"}
+                            className={`cursor-pointer text-xs transition-colors ${isSelected ? "" : "hover:bg-secondary"}`}
+                            onClick={() =>
+                              setSorenessAreas((prev) =>
+                                isSelected ? prev.filter((a) => a !== area) : [...prev, area]
+                              )
+                            }
+                          >
+                            {area}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {sorenessAreas.length > 0 && (
+                    <Card className="border-amber-500/20 bg-amber-500/5">
+                      <CardHeader className="pb-2 pt-3 px-4">
+                        <CardTitle className="text-sm font-['Space_Grotesk']">
+                          💪 Suggested Stretches & Recovery
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-4 pb-4 space-y-3">
+                        {sorenessAreas.map((area) => {
+                          const stretches = STRETCHING_SUGGESTIONS[area];
+                          if (!stretches) return null;
+                          return (
+                            <div key={area}>
+                              <p className="text-xs font-semibold text-foreground mb-1.5">{area}</p>
+                              <div className="space-y-1.5">
+                                {stretches.map((s, idx) => (
+                                  <div key={idx} className="rounded-md border bg-background/50 px-3 py-2">
+                                    <p className="text-sm font-medium">{s.name}</p>
+                                    <p className="text-xs text-muted-foreground">{s.description}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Session Notes (optional)</Label>
+              <Textarea placeholder="How did the session go?" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[80px]" />
+            </div>
+
+            <Button
+              onClick={() => saveMut.mutate()}
+              disabled={!athleteId || !sessionDate || saveMut.isPending}
+              className="w-full sm:w-auto"
+            >
+              {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Log Session
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          TEAM ATTENDANCE TAB
+      ════════════════════════════════════════════════════════════ */}
+      {tab === "team" && (
+        <div className="max-w-2xl space-y-4">
+          {/* Session details card */}
+          <Card>
+            <CardContent className="p-6 space-y-5">
+              {/* Team selector (only if coach has teams) */}
+              {teams.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Team</Label>
+                  <Select value={taTeamId} onValueChange={handleTeamChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All athletes (no team filter)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Date + type row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Input type="date" value={taDate} onChange={(e) => setTaDate(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Session Type</Label>
+                  <Select value={taType} onValueChange={setTaType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {SESSION_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Duration + RPE row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Duration (min, optional)</Label>
+                  <Input type="number" min={0} placeholder="90" value={taDuration} onChange={(e) => setTaDuration(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Group RPE</Label>
+                    <span className={`text-sm font-bold font-['Space_Grotesk'] ${RPE_LABELS[parseInt(taRpe)]?.color || ""}`}>
+                      {taRpe} — {RPE_LABELS[parseInt(taRpe)]?.label}
+                    </span>
+                  </div>
+                  <Slider
+                    value={[parseInt(taRpe)]}
+                    onValueChange={(v) => setTaRpe(String(v[0]))}
+                    min={1} max={10} step={1}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-2">
+                <Label>Session Notes (optional)</Label>
+                <Textarea
+                  placeholder="General notes for this session..."
+                  value={taNotes}
+                  onChange={(e) => setTaNotes(e.target.value)}
+                  className="min-h-[60px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Attendance roster card */}
+          <Card>
+            <CardHeader className="pb-3 pt-4 px-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-['Space_Grotesk'] flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Attendance
+                    {taRoster.length > 0 && (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        ({taRoster.length} athletes)
+                      </span>
+                    )}
+                  </CardTitle>
+                  {taRoster.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      <span className="text-emerald-400 font-medium">{presentCount} present</span>
+                      {absentCount > 0 && (
+                        <> · <span className="text-red-400 font-medium">{absentCount} absent</span></>
+                      )}
+                    </p>
+                  )}
+                </div>
+                {taRoster.length > 0 && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => markAll("present")}
+                      className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 rounded-lg px-2.5 py-1.5 hover:bg-emerald-500/10 transition-colors"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5" /> All Present
+                    </button>
+                    <button
+                      onClick={() => markAll("absent")}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-red-400 border border-border rounded-lg px-2.5 py-1.5 hover:bg-red-500/10 hover:border-red-500/30 transition-colors"
+                    >
+                      <XSquare className="h-3.5 w-3.5" /> All Absent
+                    </button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="px-5 pb-5">
+              {taRoster.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  {teams.length > 0 ? "Select a team above, or add athletes to a team." : "No athletes linked yet."}
+                </p>
+              ) : (
+                <div className="rounded-xl border divide-y overflow-hidden">
+                  {taRoster.map((a) => {
+                    const isPresent = attendance[a.id] !== "absent";
+                    return (
+                      <div
+                        key={a.id}
+                        className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                          isPresent ? "bg-background" : "bg-secondary/30"
+                        }`}
+                      >
+                        {/* Avatar */}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                          isPresent
+                            ? "bg-emerald-500/15 text-emerald-400"
+                            : "bg-secondary text-muted-foreground"
+                        }`}>
+                          {a.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+
+                        {/* Name + position */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${!isPresent ? "text-muted-foreground line-through" : ""}`}>
+                            {a.name}
+                          </p>
+                          {a.position && (
+                            <p className="text-[11px] text-muted-foreground">{a.position}</p>
+                          )}
+                        </div>
+
+                        {/* Toggle button */}
+                        <button
+                          onClick={() => toggleAttendance(a.id)}
+                          className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold border transition-all ${
+                            isPresent
+                              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400"
+                              : "bg-secondary border-border text-muted-foreground hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-400"
+                          }`}
+                        >
+                          {isPresent ? "✓ Present" : "✗ Absent"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {taRoster.length > 0 && (
+                <div className="mt-4 flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Tap a name to toggle present / absent
+                  </p>
+                  <Button
+                    onClick={() => taSubmitMut.mutate()}
+                    disabled={taRoster.length === 0 || !taDate || taSubmitMut.isPending}
+                  >
+                    {taSubmitMut.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Log Attendance ({presentCount} present)
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </DashboardLayout>
   );
 };

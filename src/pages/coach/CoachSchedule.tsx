@@ -444,7 +444,6 @@ const CoachSchedule = () => {
     setFormGroupBTitle("");
     setEditEntry(null);
     setDeleteConfirm(false);
-    setPendingReassignTeamId("");
   };
 
   // Auto-open form when navigated from Drills page (?date=&title=)
