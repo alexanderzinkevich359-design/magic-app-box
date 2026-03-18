@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.send-invite-email]
 verify_jwt = false
 
+[functions.send-parent-invite-email]
+verify_jwt = false
+
 [functions.meta-oauth]
 verify_jwt = true
 

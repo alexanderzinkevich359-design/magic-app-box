@@ -63,7 +63,7 @@ serve(async (req) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "ClipMVP <onboarding@resend.dev>",
+        from: "ClipMVP <noreply@clipmvp.com>",
         to: [athleteEmail],
         subject: `${coachName} invited you to join their team on ClipMVP`,
         html: emailHtml,
