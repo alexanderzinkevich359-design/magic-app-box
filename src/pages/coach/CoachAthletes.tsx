@@ -364,11 +364,11 @@ const CoachAthletes = () => {
         .single();
       if (error) throw error;
       const signupUrl = `${window.location.origin}/signup?parent_token=${inv.token}`;
-      try {
-        await supabase.functions.invoke("send-parent-invite-email", {
-          body: { parentEmail: parentInviteEmail, parentName: parentInviteName, coachName, athleteName, signupUrl },
-        });
-      } catch { /* Non-fatal */ }
+      const { data: emailResult, error: emailError } = await supabase.functions.invoke("send-parent-invite-email", {
+        body: { parentEmail: parentInviteEmail, parentName: parentInviteName, coachName, athleteName, signupUrl },
+      });
+      if (emailError) throw new Error(`Invite created but email failed: ${emailError.message}`);
+      if (emailResult?.warning) throw new Error(`Invite created but email not sent — ${emailResult.warning}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pending-parent-invites", selectedAthleteId] });
@@ -376,7 +376,7 @@ const CoachAthletes = () => {
       setParentInviteName(""); setParentInviteEmail("");
       toast({ title: "Invite sent!", description: "Parent will receive an email to create their account." });
     },
-    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Error sending invite", description: e.message, variant: "destructive" }),
   });
 
   const cancelParentInviteMutation = useMutation({
