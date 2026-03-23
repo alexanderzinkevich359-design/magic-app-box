@@ -24,6 +24,7 @@ import SpotlightCallback from "./pages/coach/SpotlightCallback";
 import CoachGameLog from "./pages/coach/CoachGameLog";
 import CoachAssistant from "./pages/coach/CoachAssistant";
 import ParentDashboard from "./pages/parent/ParentDashboard";
+import ParentBilling from "./pages/parent/ParentBilling";
 import AthleteDashboard from "./pages/athlete/AthleteDashboard";
 import AthleteSchedule from "./pages/athlete/AthleteSchedule";
 import Settings from "./pages/Settings";
@@ -84,8 +85,11 @@ const App = () => (
             <Route path="/coach/*" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachDashboard /></ProtectedRoute>
             } />
-            <Route path="/parent/*" element={
+            <Route path="/parent" element={
               <ProtectedRoute allowedRoles={["parent"]}><ParentDashboard /></ProtectedRoute>
+            } />
+            <Route path="/parent/billing" element={
+              <ProtectedRoute allowedRoles={["parent"]}><ParentBilling /></ProtectedRoute>
             } />
             <Route path="/athlete/schedule" element={
               <ProtectedRoute allowedRoles={["athlete"]}><AthleteSchedule /></ProtectedRoute>
