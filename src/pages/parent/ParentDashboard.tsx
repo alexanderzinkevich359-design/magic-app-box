@@ -182,19 +182,21 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 10. Weekly question
-  const { data: thisWeekQuestion } = useQuery({
-    queryKey: ["parent-week-q", athleteId, weekStart],
+  // 10. All messages between this parent and coach (for the athlete)
+  const { data: allMessages = [] } = useQuery({
+    queryKey: ["parent-messages", athleteId, user?.id],
     queryFn: async () => {
-      if (!athleteId || !user) return null;
+      if (!athleteId || !user) return [];
       const { data } = await (supabase as any).from("parent_support_questions")
-        .select("id, question, coach_reply, replied_at")
+        .select("id, question, coach_reply, replied_at, created_at")
         .eq("parent_user_id", user.id).eq("athlete_user_id", athleteId)
-        .eq("week_start", weekStart).maybeSingle();
-      return data || null;
+        .order("created_at", { ascending: true })
+        .limit(50);
+      return data || [];
     },
     enabled: !!athleteId && !!user,
   });
+
 
   // Engagement indicator
   const engagement = useMemo(() => {
@@ -248,9 +250,9 @@ const ParentDashboard = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["parent-week-q", athleteId, weekStart] });
+      queryClient.invalidateQueries({ queryKey: ["parent-messages", athleteId, user?.id] });
       setWeekQuestion("");
-      toast({ title: "Question submitted", description: "Your coach will reply soon." });
+      toast({ title: "Message sent", description: "Your coach will reply soon." });
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -462,14 +464,14 @@ const ParentDashboard = () => {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm">Communications</p>
                     <p className="text-xs text-muted-foreground">
-                      {thisWeekQuestion?.coach_reply
+                      {(allMessages as any[]).some((m: any) => m.coach_reply && !m._seen)
                         ? "Coach replied — tap to read"
-                        : thisWeekQuestion
-                        ? "Message sent this week"
+                        : (allMessages as any[]).length > 0
+                        ? `${(allMessages as any[]).length} message${(allMessages as any[]).length !== 1 ? "s" : ""}`
                         : "Send a message to your coach"}
                     </p>
                   </div>
-                  {thisWeekQuestion?.coach_reply && (
+                  {(allMessages as any[]).some((m: any) => m.coach_reply) && (
                     <div className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
                   )}
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -696,45 +698,59 @@ const ParentDashboard = () => {
           <p className="font-bold text-base font-['Space_Grotesk'] mb-1">Communications</p>
           <p className="text-sm text-muted-foreground mb-5">Send a message to your coach and see their replies here.</p>
           <div className="space-y-4">
-            {/* Message thread */}
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Message Your Coach
-                </p>
-                {thisWeekQuestion ? (
-                  <div className="space-y-2">
-                    <div className="rounded-lg border bg-secondary/30 p-3">
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">You</p>
-                      <p className="text-sm">{thisWeekQuestion.question}</p>
-                    </div>
-                    {thisWeekQuestion.coach_reply ? (
-                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                        <p className="text-[11px] text-primary uppercase tracking-wide font-medium mb-1">Coach</p>
-                        <p className="text-sm">{thisWeekQuestion.coach_reply}</p>
+            {/* Full message thread */}
+            {(allMessages as any[]).length > 0 && (
+              <div className="space-y-2">
+                {(allMessages as any[]).map((msg: any) => (
+                  <div key={msg.id} className="space-y-2">
+                    {/* Parent message */}
+                    <div className="flex justify-end">
+                      <div className="max-w-[85%] bg-primary text-primary-foreground rounded-2xl rounded-br-sm px-4 py-2.5">
+                        <p className="text-sm leading-relaxed">{msg.question}</p>
+                        <p className="text-[10px] opacity-60 mt-1 text-right">
+                          {new Date(msg.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                        </p>
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground italic">Waiting for a reply.</p>
+                    </div>
+                    {/* Coach reply */}
+                    {msg.coach_reply && (
+                      <div className="flex justify-start">
+                        <div className="max-w-[85%] bg-secondary/60 rounded-2xl rounded-bl-sm px-4 py-2.5">
+                          <p className="text-[10px] text-muted-foreground font-medium mb-1">Coach</p>
+                          <p className="text-sm leading-relaxed">{msg.coach_reply}</p>
+                          {msg.replied_at && (
+                            <p className="text-[10px] opacity-60 mt-1">
+                              {new Date(msg.replied_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {!msg.coach_reply && (
+                      <p className="text-[11px] text-muted-foreground italic pl-1">Waiting for a reply…</p>
                     )}
                   </div>
-                ) : (
-                  <>
-                    <Textarea
-                      placeholder="Write your message..."
-                      value={weekQuestion}
-                      onChange={e => setWeekQuestion(e.target.value)}
-                      className="min-h-[80px] text-sm"
-                    />
-                    <Button
-                      className="w-full"
-                      onClick={() => submitQuestionMutation.mutate()}
-                      disabled={!weekQuestion.trim() || submitQuestionMutation.isPending}
-                    >
-                      {submitQuestionMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
-                      Send Message
-                    </Button>
-                  </>
-                )}
+                ))}
+              </div>
+            )}
+
+            {/* New message input — always visible */}
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <Textarea
+                  placeholder="Write your message..."
+                  value={weekQuestion}
+                  onChange={e => setWeekQuestion(e.target.value)}
+                  className="min-h-[80px] text-sm"
+                />
+                <Button
+                  className="w-full"
+                  onClick={() => submitQuestionMutation.mutate()}
+                  disabled={!weekQuestion.trim() || submitQuestionMutation.isPending}
+                >
+                  {submitQuestionMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
+                  Send Message
+                </Button>
               </CardContent>
             </Card>
 
