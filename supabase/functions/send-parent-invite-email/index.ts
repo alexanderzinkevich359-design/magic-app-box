@@ -42,7 +42,8 @@ serve(async (req) => {
           <ul style="margin: 8px 0 0; padding-left: 16px; color: #333; font-size: 14px; line-height: 1.8;">
             <li>Current development goals and progress</li>
             <li>Consistency and engagement indicators</li>
-            <li>Notes your coach chooses to share</li>
+            <li>Notes shared by your coach</li>
+            <li>Real-time schedule updates and last-minute changes</li>
             <li>A weekly channel to ask how to support at home</li>
           </ul>
         </div>
