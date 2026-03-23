@@ -1,4 +1,4 @@
-project_id = "inrjsvwmnldfjykmkoan"
+project_id = "qtlqgckrnkeogmixjdzz"
 
 [functions.recommend-workout]
 verify_jwt = false
