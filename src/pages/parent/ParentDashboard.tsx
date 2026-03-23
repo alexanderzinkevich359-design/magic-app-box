@@ -211,7 +211,7 @@ const ParentDashboard = () => {
     const score = (avgProgress / 100 + reflectionRate + attendRate) / 3;
     if (score >= 0.67) return { signal: "On Track", color: "emerald", desc: "Steady engagement and progress." };
     if (score >= 0.34) return { signal: "In Progress", color: "yellow", desc: "Some gaps in recent activity." };
-    return { signal: "Needs Attention", color: "red", desc: "Engagement needs a boost." };
+    return { signal: "In Progress", color: "yellow", desc: "Engagement needs a boost." };
   }, [goals, reflections, sessions]);
 
   const submitQuestionMutation = useMutation({
@@ -305,7 +305,7 @@ const ParentDashboard = () => {
             <div className="space-y-3">
               {schedule.length === 0 ? (
                 <Card>
-                  <CardContent className="py-12 text-center">
+                  <CardContent className="py-10 text-center">
                     <CalendarDays className="h-9 w-9 mx-auto text-muted-foreground mb-3" />
                     <p className="font-medium text-sm">No upcoming sessions</p>
                     <p className="text-xs text-muted-foreground mt-1">Check back when your coach schedules something.</p>
@@ -316,7 +316,6 @@ const ParentDashboard = () => {
                   <Card key={session.id} className="overflow-hidden">
                     <CardContent className="p-0">
                       <div className="flex items-stretch">
-                        {/* Color bar */}
                         <div className={`w-1.5 shrink-0 ${SESSION_COLOR_MAP[session.color] ?? SESSION_COLOR_MAP.default}`} />
                         <div className="flex-1 p-4">
                           <div className="flex items-start justify-between gap-2">
@@ -453,7 +452,7 @@ const ParentDashboard = () => {
               {/* Weekly support question */}
               <Card>
                 <CardContent className="p-4 space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ask Your Coach</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Communicate to Your Coach</p>
                   <p className="text-sm text-muted-foreground leading-snug">
                     How can you support this week's development at home?
                   </p>
