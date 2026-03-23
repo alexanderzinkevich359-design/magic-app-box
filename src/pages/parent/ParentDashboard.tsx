@@ -1,17 +1,19 @@
 import { useState, useMemo } from "react";
-import { startOfWeek, format } from "date-fns";
+import { startOfWeek, format, isToday, isTomorrow, parseISO } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Target, FileDown, Loader2, StickyNote, CheckCircle2, Circle, Trophy } from "lucide-react";
+import {
+  Target, Loader2, StickyNote, CheckCircle2, Circle,
+  CalendarDays, TrendingUp, Clock, MapPin, Swords,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { evalDerivedStat, formatBattingAvg } from "@/lib/sports/types";
 
 const CATEGORY_COLORS: Record<string, string> = {
   skill: "bg-blue-500/10 text-blue-400 border-blue-500/20",
@@ -20,13 +22,30 @@ const CATEGORY_COLORS: Record<string, string> = {
   coach_assigned: "bg-orange-500/10 text-orange-400 border-orange-500/20",
 };
 
+const SESSION_COLOR_MAP: Record<string, string> = {
+  blue: "bg-blue-500",
+  green: "bg-green-500",
+  orange: "bg-orange-500",
+  purple: "bg-purple-500",
+  default: "bg-primary",
+};
+
+function formatSessionDate(dateStr: string): string {
+  const d = parseISO(dateStr + "T12:00:00");
+  if (isToday(d)) return "Today";
+  if (isTomorrow(d)) return "Tomorrow";
+  return format(d, "EEE, MMM d");
+}
+
 const ParentDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<"schedule" | "development">("schedule");
   const [weekQuestion, setWeekQuestion] = useState("");
 
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const today = format(new Date(), "yyyy-MM-dd");
 
   // 1. Linked athlete
   const { data: link } = useQuery({
@@ -61,14 +80,14 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 3. Coach athlete link (for position/sport)
+  // 3. Coach link (position + coach_user_id)
   const { data: athleteLink } = useQuery({
     queryKey: ["parent-athlete-link-detail", athleteId],
     queryFn: async () => {
       if (!athleteId) return null;
       const { data } = await supabase
         .from("coach_athlete_links")
-        .select("position, sport_id")
+        .select("position, sport_id, coach_user_id")
         .eq("athlete_user_id", athleteId)
         .limit(1)
         .single();
@@ -77,14 +96,33 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 4. Goals (last 6)
+  const coachId: string | null = (athleteLink as any)?.coach_user_id ?? null;
+
+  // 4. Upcoming schedule (requires parent_view_athlete_schedule RLS policy)
+  const { data: schedule = [] } = useQuery({
+    queryKey: ["parent-schedule", coachId],
+    queryFn: async () => {
+      if (!coachId) return [];
+      const { data } = await (supabase as any)
+        .from("coach_schedule")
+        .select("id, title, date, start_time, session_type, game_opponent, game_home_away, color, notes")
+        .eq("coach_id", coachId)
+        .gte("date", today)
+        .order("date", { ascending: true })
+        .limit(30);
+      return data || [];
+    },
+    enabled: !!coachId,
+  });
+
+  // 5. Goals (last 6)
   const { data: goals = [] } = useQuery({
     queryKey: ["parent-goals", athleteId],
     queryFn: async () => {
       if (!athleteId) return [];
       const { data } = await (supabase as any)
         .from("athlete_goals")
-        .select("id, title, target, progress, completed_at, category, is_measurable")
+        .select("id, title, target, progress, completed_at, category")
         .eq("athlete_id", athleteId)
         .order("created_at", { ascending: false })
         .limit(6);
@@ -93,14 +131,14 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 5. Weekly reflections (last 4 weeks)
+  // 6. Weekly reflections (for engagement calc)
   const { data: reflections = [] } = useQuery({
     queryKey: ["parent-reflections", athleteId],
     queryFn: async () => {
       if (!athleteId) return [];
       const { data } = await (supabase as any)
         .from("weekly_reflections")
-        .select("id, week_start, self_rating")
+        .select("id, week_start")
         .eq("athlete_id", athleteId)
         .order("week_start", { ascending: false })
         .limit(4);
@@ -109,7 +147,7 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 6. Training sessions (last 4 weeks)
+  // 7. Training sessions (for engagement calc)
   const { data: sessions = [] } = useQuery({
     queryKey: ["parent-sessions", athleteId],
     queryFn: async () => {
@@ -125,7 +163,7 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 7. Shared notes (visible_to_parent = true)
+  // 8. Shared notes
   const { data: sharedNotes = [] } = useQuery({
     queryKey: ["parent-notes", athleteId],
     queryFn: async () => {
@@ -142,38 +180,7 @@ const ParentDashboard = () => {
     enabled: !!athleteId,
   });
 
-  // 8. Recent games (last 5 competitive events)
-  const { data: recentGames = [] } = useQuery({
-    queryKey: ["parent-recent-games", athleteId],
-    queryFn: async () => {
-      if (!athleteId) return [];
-      // Get event_ids this athlete has stats for
-      const { data: statRows } = await (supabase as any)
-        .from("game_athlete_stats")
-        .select("event_id, stat_key, value")
-        .eq("athlete_id", athleteId);
-      if (!statRows?.length) return [];
-      const eventIds = [...new Set((statRows as any[]).map((r: any) => r.event_id))] as string[];
-      const { data: evs } = await (supabase as any)
-        .from("game_events")
-        .select("id, event_date, event_type, opponent, result, score_us, score_them")
-        .in("id", eventIds)
-        .in("event_type", ["game", "scrimmage", "tournament"])
-        .order("event_date", { ascending: false })
-        .limit(5);
-      // Build stats map per event
-      return (evs ?? []).map((ev: any) => {
-        const evStats: Record<string, number> = {};
-        for (const r of (statRows as any[]).filter((r: any) => r.event_id === ev.id)) {
-          evStats[r.stat_key] = r.value;
-        }
-        return { ...ev, stats: evStats };
-      });
-    },
-    enabled: !!athleteId,
-  });
-
-  // 10. This week's support question
+  // 9. Weekly support question
   const { data: thisWeekQuestion } = useQuery({
     queryKey: ["parent-week-q", athleteId, weekStart],
     queryFn: async () => {
@@ -190,8 +197,8 @@ const ParentDashboard = () => {
     enabled: !!athleteId && !!user,
   });
 
-  // Consistency indicator
-  const consistency = useMemo(() => {
+  // Engagement indicator
+  const engagement = useMemo(() => {
     const activeGoals = goals.filter((g: any) => !g.completed_at).slice(0, 4);
     const avgProgress = activeGoals.length
       ? activeGoals.reduce((s: number, g: any) => s + (g.progress ?? 0), 0) / activeGoals.length
@@ -202,10 +209,9 @@ const ParentDashboard = () => {
     const nonScheduled = (sessions as any[]).filter((s) => s.status !== "scheduled").length;
     const attendRate = nonScheduled > 0 ? attended / nonScheduled : 1;
     const score = (avgProgress / 100 + reflectionRate + attendRate) / 3;
-
-    if (score >= 0.67) return { signal: "Consistent", color: "emerald", desc: "Showing steady engagement and progress." };
-    if (score >= 0.34) return { signal: "Inconsistent", color: "yellow", desc: "Some gaps in recent activity." };
-    return { signal: "Needs Attention", color: "red", desc: "Engagement or progress needs a boost." };
+    if (score >= 0.67) return { signal: "On Track", color: "emerald", desc: "Steady engagement and progress." };
+    if (score >= 0.34) return { signal: "In Progress", color: "yellow", desc: "Some gaps in recent activity." };
+    return { signal: "Needs Attention", color: "red", desc: "Engagement needs a boost." };
   }, [goals, reflections, sessions]);
 
   const submitQuestionMutation = useMutation({
@@ -228,264 +234,267 @@ const ParentDashboard = () => {
   });
 
   const activeGoal = goals.find((g: any) => !g.completed_at) ?? null;
+  const athleteName = athleteProfile
+    ? `${athleteProfile.first_name} ${athleteProfile.last_name}`
+    : "Your Athlete";
+  const initials = athleteProfile
+    ? `${athleteProfile.first_name[0]}${athleteProfile.last_name[0]}`
+    : "?";
 
-  const consistencyPill: Record<string, string> = {
-    emerald: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-    yellow: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30",
-    red: "bg-red-500/20 text-red-400 border border-red-500/30",
+  const engagementStyle: Record<string, string> = {
+    emerald: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
+    yellow: "bg-yellow-500/15 text-yellow-400 border-yellow-500/25",
+    red: "bg-red-500/15 text-red-400 border-red-500/25",
   };
-
-  if (!link && link !== undefined) {
-    // Still loading
-  }
 
   return (
     <DashboardLayout role="parent">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold font-['Space_Grotesk']">Parent Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Follow your athlete's development journey</p>
+      {/* Athlete header — always visible */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center text-lg font-bold text-primary font-['Space_Grotesk'] shrink-0">
+          {initials}
+        </div>
+        <div>
+          <p className="text-lg font-bold font-['Space_Grotesk'] leading-tight">{athleteName}</p>
+          {athleteLink?.position && (
+            <p className="text-sm text-muted-foreground">{athleteLink.position}</p>
+          )}
+        </div>
       </div>
 
-      {/* No athlete linked yet */}
       {!athleteId ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Target className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="font-medium">No athlete linked yet</p>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
               Your coach will send you an invite to connect your account to your athlete's profile.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {/* 1. Athlete Header */}
-          <Card>
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-xl font-bold text-primary font-['Space_Grotesk']">
-                {athleteProfile ? `${athleteProfile.first_name[0]}${athleteProfile.last_name[0]}` : "?"}
-              </div>
-              <div>
-                <p className="text-xl font-bold font-['Space_Grotesk']">
-                  {athleteProfile ? `${athleteProfile.first_name} ${athleteProfile.last_name}` : "Your Athlete"}
-                </p>
-                {athleteLink?.position && (
-                  <p className="text-sm text-muted-foreground">{athleteLink.position}</p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+        <>
+          {/* Tab bar */}
+          <div className="flex rounded-xl border border-border bg-secondary/30 p-1 mb-6">
+            <button
+              onClick={() => setTab("schedule")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                tab === "schedule"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Schedule
+            </button>
+            <button
+              onClick={() => setTab("development")}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                tab === "development"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground"
+              }`}
+            >
+              <TrendingUp className="h-4 w-4" />
+              Development
+            </button>
+          </div>
 
-          {/* 2. Current Development Focus */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-['Space_Grotesk']">Current Development Focus</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {activeGoal ? (
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="font-medium">{activeGoal.title}</p>
-                      {activeGoal.target && (
-                        <p className="text-xs text-muted-foreground mt-0.5">Target: {activeGoal.target}</p>
-                      )}
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] capitalize shrink-0 ${CATEGORY_COLORS[activeGoal.category] ?? ""}`}
-                    >
-                      {activeGoal.category?.replace("_", " ")}
-                    </Badge>
-                  </div>
-                  <Progress value={activeGoal.progress} className="h-2" />
-                  <p className="text-xs text-muted-foreground">
-                    {activeGoal.progress >= 40 ? "On Track" : "In Progress"}
-                  </p>
-                </div>
+          {/* ── SCHEDULE TAB ── */}
+          {tab === "schedule" && (
+            <div className="space-y-3">
+              {schedule.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <CalendarDays className="h-9 w-9 mx-auto text-muted-foreground mb-3" />
+                    <p className="font-medium text-sm">No upcoming sessions</p>
+                    <p className="text-xs text-muted-foreground mt-1">Check back when your coach schedules something.</p>
+                  </CardContent>
+                </Card>
               ) : (
-                <p className="text-sm text-muted-foreground py-2">No active goals at the moment.</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 3. Consistency Indicator */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-['Space_Grotesk']">Engagement</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-3">
-                <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${consistencyPill[consistency.color]}`}>
-                  {consistency.signal}
-                </span>
-                <p className="text-sm text-muted-foreground">{consistency.desc}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 4. Development Timeline */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-['Space_Grotesk']">Development Timeline</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {goals.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">No goals yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {goals.map((goal: any) => (
-                    <div key={goal.id} className="flex items-center gap-3">
-                      {goal.completed_at ? (
-                        <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
-                      )}
-                      <span className="text-sm flex-1">{goal.title}</span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] capitalize ${CATEGORY_COLORS[goal.category] ?? ""}`}
-                      >
-                        {goal.category?.replace("_", " ")}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 5. Coach Shared Notes */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-['Space_Grotesk'] flex items-center gap-2">
-                <StickyNote className="h-4 w-4" /> Coach Updates
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {sharedNotes.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-2">No shared updates yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {sharedNotes.map((note: any) => (
-                    <div key={note.id} className="rounded-lg border bg-secondary/30 p-3">
-                      <p className="text-sm">{note.note}</p>
-                      <p className="text-xs text-muted-foreground mt-1.5">
-                        {new Date(note.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 6. Recent Games */}
-          {recentGames.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-['Space_Grotesk'] flex items-center gap-2">
-                  <Trophy className="h-4 w-4" /> Recent Games
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {recentGames.map((ev: any) => {
-                    const avg = evalDerivedStat("h/ab", ev.stats);
-                    return (
-                      <div key={ev.id} className="flex items-center gap-3 py-1.5 border-b last:border-b-0">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">
-                            {format(new Date(ev.event_date + "T12:00:00"), "MMM d")}
-                            {ev.opponent && <span className="text-muted-foreground font-normal"> vs. {ev.opponent}</span>}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {avg !== null && (
-                            <span className="text-xs text-muted-foreground font-mono">
-                              AVG {formatBattingAvg(avg)}
-                            </span>
-                          )}
-                          {ev.result && (
-                            <Badge
-                              variant="outline"
-                              className={`text-xs ${
-                                ev.result === "W" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-                                ev.result === "L" ? "bg-red-500/10 text-red-400 border-red-500/20" :
-                                "bg-gray-500/10 text-gray-400 border-gray-500/20"
-                              }`}
-                            >
-                              {ev.result}
-                              {ev.score_us != null && ev.score_them != null && ` ${ev.score_us}–${ev.score_them}`}
-                            </Badge>
-                          )}
+                schedule.map((session: any) => (
+                  <Card key={session.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex items-stretch">
+                        {/* Color bar */}
+                        <div className={`w-1.5 shrink-0 ${SESSION_COLOR_MAP[session.color] ?? SESSION_COLOR_MAP.default}`} />
+                        <div className="flex-1 p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm leading-tight">{session.title}</p>
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <CalendarDays className="h-3 w-3" />
+                                  {formatSessionDate(session.date)}
+                                </span>
+                                {session.start_time && (
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    {session.start_time.slice(0, 5)}
+                                  </span>
+                                )}
+                              </div>
+                              {session.session_type === "game" && (
+                                <div className="mt-2 space-y-0.5">
+                                  {session.game_opponent && (
+                                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <Swords className="h-3 w-3" /> vs. {session.game_opponent}
+                                    </p>
+                                  )}
+                                  {session.game_home_away && (
+                                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <MapPin className="h-3 w-3" /> {session.game_home_away === "home" ? "Home" : "Away"}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {session.session_type === "game" && (
+                              <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20 shrink-0">
+                                Game
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           )}
 
-          {/* 7. Weekly Support Question */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-['Space_Grotesk']">Weekly Support Question</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                How can you support this week's development focus at home?
-              </p>
-              {thisWeekQuestion ? (
-                <div className="space-y-3">
-                  <div className="rounded-lg border bg-secondary/30 p-3">
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Your question this week</p>
-                    <p className="text-sm">{thisWeekQuestion.question}</p>
-                  </div>
-                  {thisWeekQuestion.coach_reply ? (
-                    <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                      <p className="text-[11px] text-primary uppercase tracking-wide font-medium mb-1">Coach's reply</p>
-                      <p className="text-sm">{thisWeekQuestion.coach_reply}</p>
+          {/* ── DEVELOPMENT TAB ── */}
+          {tab === "development" && (
+            <div className="space-y-4">
+              {/* Engagement pill */}
+              <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium border ${engagementStyle[engagement.color]}`}>
+                <span>{engagement.signal}</span>
+                <span className="text-xs font-normal opacity-80">· {engagement.desc}</span>
+              </div>
+
+              {/* Active goal */}
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Focus</p>
+                  {activeGoal ? (
+                    <>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold text-sm leading-snug flex-1">{activeGoal.title}</p>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] capitalize shrink-0 ${CATEGORY_COLORS[activeGoal.category] ?? ""}`}
+                        >
+                          {activeGoal.category?.replace("_", " ")}
+                        </Badge>
+                      </div>
+                      {activeGoal.target && (
+                        <p className="text-xs text-muted-foreground">Target: {activeGoal.target}</p>
+                      )}
+                      <Progress value={activeGoal.progress} className="h-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {activeGoal.progress >= 40 ? "✓ On Track" : "In Progress"}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No active goals at the moment.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* All goals */}
+              {goals.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Development Goals</p>
+                    <div className="space-y-2.5">
+                      {goals.map((goal: any) => (
+                        <div key={goal.id} className="flex items-center gap-3">
+                          {goal.completed_at ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                          ) : (
+                            <Circle className="h-4 w-4 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="text-sm flex-1 leading-snug">{goal.title}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] capitalize shrink-0 ${CATEGORY_COLORS[goal.category] ?? ""}`}
+                          >
+                            {goal.category?.replace("_", " ")}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Coach notes */}
+              {sharedNotes.length > 0 && (
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3 flex items-center gap-1.5">
+                      <StickyNote className="h-3.5 w-3.5" /> Coach Updates
+                    </p>
+                    <div className="space-y-2.5">
+                      {sharedNotes.map((note: any) => (
+                        <div key={note.id} className="rounded-lg border bg-secondary/30 p-3">
+                          <p className="text-sm leading-relaxed">{note.note}</p>
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            {new Date(note.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Weekly support question */}
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Ask Your Coach</p>
+                  <p className="text-sm text-muted-foreground leading-snug">
+                    How can you support this week's development at home?
+                  </p>
+                  {thisWeekQuestion ? (
+                    <div className="space-y-2">
+                      <div className="rounded-lg border bg-secondary/30 p-3">
+                        <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Your question</p>
+                        <p className="text-sm">{thisWeekQuestion.question}</p>
+                      </div>
+                      {thisWeekQuestion.coach_reply ? (
+                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                          <p className="text-[11px] text-primary uppercase tracking-wide font-medium mb-1">Coach's reply</p>
+                          <p className="text-sm">{thisWeekQuestion.coach_reply}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Waiting for your coach to reply.</p>
+                      )}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">Waiting for your coach to reply.</p>
+                    <>
+                      <Textarea
+                        placeholder="Ask how you can best support your athlete this week..."
+                        value={weekQuestion}
+                        onChange={(e) => setWeekQuestion(e.target.value)}
+                        className="min-h-[80px] text-sm"
+                      />
+                      <Button
+                        className="w-full"
+                        onClick={() => submitQuestionMutation.mutate()}
+                        disabled={!weekQuestion.trim() || submitQuestionMutation.isPending}
+                      >
+                        {submitQuestionMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
+                        Send Question
+                      </Button>
+                    </>
                   )}
-                </div>
-              ) : (
-                <>
-                  <Textarea
-                    placeholder="Ask how you can best support your athlete this week..."
-                    value={weekQuestion}
-                    onChange={(e) => setWeekQuestion(e.target.value)}
-                    className="min-h-[80px]"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => submitQuestionMutation.mutate()}
-                    disabled={!weekQuestion.trim() || submitQuestionMutation.isPending}
-                  >
-                    {submitQuestionMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
-                    Submit Question
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 8. PDF Report stub */}
-          <Card>
-            <CardContent className="p-5 flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">Monthly Development Report</p>
-                <p className="text-xs text-muted-foreground mt-0.5">A full summary of your athlete's progress</p>
-              </div>
-              <Button variant="outline" size="sm" disabled title="Coming Soon">
-                <FileDown className="h-4 w-4 mr-2" /> Download
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </>
       )}
     </DashboardLayout>
   );
