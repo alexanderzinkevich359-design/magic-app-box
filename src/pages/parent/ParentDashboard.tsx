@@ -465,8 +465,8 @@ const ParentDashboard = () => {
                       {thisWeekQuestion?.coach_reply
                         ? "Coach replied — tap to read"
                         : thisWeekQuestion
-                        ? "Question sent this week"
-                        : "Communicate to your coach"}
+                        ? "Message sent this week"
+                        : "Send a message to your coach"}
                     </p>
                   </div>
                   {thisWeekQuestion?.coach_reply && (
@@ -693,36 +693,34 @@ const ParentDashboard = () => {
       {view === "communications" && (
         <div>
           <BackButton />
-          <p className="font-bold text-base font-['Space_Grotesk'] mb-4">Communications</p>
+          <p className="font-bold text-base font-['Space_Grotesk'] mb-1">Communications</p>
+          <p className="text-sm text-muted-foreground mb-5">Send a message to your coach and see their replies here.</p>
           <div className="space-y-4">
-            {/* This week's question */}
+            {/* Message thread */}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Communicate to Your Coach
-                </p>
-                <p className="text-sm text-muted-foreground leading-snug">
-                  How can you support this week's development at home?
+                  Message Your Coach
                 </p>
                 {thisWeekQuestion ? (
                   <div className="space-y-2">
                     <div className="rounded-lg border bg-secondary/30 p-3">
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">Your question</p>
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium mb-1">You</p>
                       <p className="text-sm">{thisWeekQuestion.question}</p>
                     </div>
                     {thisWeekQuestion.coach_reply ? (
                       <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                        <p className="text-[11px] text-primary uppercase tracking-wide font-medium mb-1">Coach's reply</p>
+                        <p className="text-[11px] text-primary uppercase tracking-wide font-medium mb-1">Coach</p>
                         <p className="text-sm">{thisWeekQuestion.coach_reply}</p>
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground italic">Waiting for your coach to reply.</p>
+                      <p className="text-xs text-muted-foreground italic">Waiting for a reply.</p>
                     )}
                   </div>
                 ) : (
                   <>
                     <Textarea
-                      placeholder="Ask how you can best support your athlete this week..."
+                      placeholder="Write your message..."
                       value={weekQuestion}
                       onChange={e => setWeekQuestion(e.target.value)}
                       className="min-h-[80px] text-sm"
@@ -733,7 +731,7 @@ const ParentDashboard = () => {
                       disabled={!weekQuestion.trim() || submitQuestionMutation.isPending}
                     >
                       {submitQuestionMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
-                      Send Question
+                      Send Message
                     </Button>
                   </>
                 )}
