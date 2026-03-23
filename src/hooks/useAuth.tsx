@@ -48,11 +48,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // onAuthStateChange handles sign-in/sign-out events after initial load.
     // It does NOT control the loading flag to avoid the race condition where
     // it fires with null before localStorage has been read.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         setTimeout(() => fetchRoleAndProfile(session.user.id), 0);
+        // Auto-link any pending parent invites whenever a session is established.
+        // This covers: email-confirmed signups, direct logins, and token-based signups.
+        if (event === "SIGNED_IN") {
+          const uid = session.user.id;
+          const email = session.user.email;
+          if (email) {
+            (supabase as any)
+              .from("parent_invites")
+              .select("id, athlete_user_id")
+              .eq("parent_email", email)
+              .eq("status", "pending")
+              .gt("expires_at", new Date().toISOString())
+              .then(async ({ data: pending }: { data: Array<{ id: string; athlete_user_id: string }> | null }) => {
+                for (const inv of pending ?? []) {
+                  await (supabase as any)
+                    .from("parent_athlete_links")
+                    .insert({ parent_user_id: uid, athlete_user_id: inv.athlete_user_id })
+                    .select();
+                  await (supabase as any)
+                    .from("parent_invites")
+                    .update({ status: "accepted" })
+                    .eq("id", inv.id);
+                }
+              });
+          }
+        }
       } else {
         setRole(null);
         setProfile(null);

@@ -61,10 +61,12 @@ const Login = () => {
       // Non-fatal
     }
 
-    // Fallback: if role doesn't load within 3s, default to athlete dashboard
-    roleTimeoutRef.current = setTimeout(() => {
-      navigate("/athlete", { replace: true });
-    }, 3000);
+    // Fallback: if role doesn't load within 5s, navigate based on stored user metadata
+    roleTimeoutRef.current = setTimeout(async () => {
+      const { data: { user: u } } = await supabase.auth.getUser();
+      const metaRole = u?.user_metadata?.role as string | undefined;
+      navigate(`/${metaRole ?? "athlete"}`, { replace: true });
+    }, 5000);
   };
 
   return (
