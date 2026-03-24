@@ -141,6 +141,30 @@ const CoachAthletes = () => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showQRDialog, setShowQRDialog] = useState(false);
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
+  const [athleteDetailTab, setAthleteDetailTab] = useState("overview");
+
+  // Track which athlete's parent questions the coach has seen (localStorage-backed)
+  const [pqSeenTimestamps, setPqSeenTimestamps] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const stored = localStorage.getItem(`coach_pq_seen_${user.id}`);
+      if (stored) setPqSeenTimestamps(JSON.parse(stored));
+    } catch {}
+  }, [user?.id]);
+
+  const markAthleteQuestionsRead = (athleteId: string) => {
+    if (!user?.id) return;
+    const ts = new Date().toISOString();
+    const updated = { ...pqSeenTimestamps, [athleteId]: ts };
+    setPqSeenTimestamps(updated);
+    localStorage.setItem(`coach_pq_seen_${user.id}`, JSON.stringify(updated));
+  };
+
+  // Reset detail tab when athlete selection changes
+  useEffect(() => {
+    setAthleteDetailTab("overview");
+  }, [selectedAthleteId]);
   const [showGoalForm, setShowGoalForm] = useState(false);
   const [showAssignProgram, setShowAssignProgram] = useState(false);
   const [showAiGenDialog, setShowAiGenDialog] = useState(false);
@@ -724,6 +748,35 @@ const CoachAthletes = () => {
     enabled: !!selectedAthleteId,
   });
 
+  // Lightweight query: latest parent question timestamp per athlete (for notification dots)
+  const { data: pqSummary = [] } = useQuery({
+    queryKey: ["parent-questions-summary", user?.id],
+    queryFn: async () => {
+      if (!user || !athletes.length) return [];
+      const athleteIds = athletes.map((a: any) => a.athlete_user_id);
+      const { data } = await (supabase as any).from("parent_support_questions")
+        .select("athlete_user_id, created_at")
+        .in("athlete_user_id", athleteIds)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!user && athletes.length > 0,
+  });
+
+  // Set of athleteIds that have unread parent questions
+  const unreadAthletes = useMemo(() => {
+    const latestPer: Record<string, string> = {};
+    (pqSummary as any[]).forEach((q: any) => {
+      if (!latestPer[q.athlete_user_id] || q.created_at > latestPer[q.athlete_user_id])
+        latestPer[q.athlete_user_id] = q.created_at;
+    });
+    const set = new Set<string>();
+    Object.entries(latestPer).forEach(([id, ts]) => {
+      if (!pqSeenTimestamps[id] || ts > pqSeenTimestamps[id]) set.add(id);
+    });
+    return set;
+  }, [pqSummary, pqSeenTimestamps]);
+
   // Helper to send invite email (fire-and-forget, don't block invite flow)
   const sendInviteEmail = async (athleteEmail: string, athleteName: string) => {
     try {
@@ -884,9 +937,14 @@ const CoachAthletes = () => {
                         canEdit={false}
                       />
                       <div>
-                        <p className="font-medium">
-                          {athlete.profile ? `${athlete.profile.first_name} ${athlete.profile.last_name}` : "Unknown"}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            {athlete.profile ? `${athlete.profile.first_name} ${athlete.profile.last_name}` : "Unknown"}
+                          </p>
+                          {unreadAthletes.has(athlete.athlete_user_id) && (
+                            <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-sm text-muted-foreground">{athlete.position || "No position"}</span>
                           {sportConfigMap.get(athlete.sport_id)?.session_config.hasHandTracking && athlete.throw_hand && (
@@ -1098,7 +1156,10 @@ const CoachAthletes = () => {
                 </div>
               </DialogHeader>
 
-              <Tabs defaultValue="overview" className="mt-2">
+              <Tabs value={athleteDetailTab} onValueChange={(v) => {
+                setAthleteDetailTab(v);
+                if (v === "notes" && selectedAthleteId) markAthleteQuestionsRead(selectedAthleteId);
+              }} className="mt-2">
                 <TabsList className="w-full">
                   <TabsTrigger value="overview" className="flex-1 gap-1.5">
                     <Target className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">Overview</span>
@@ -1106,8 +1167,12 @@ const CoachAthletes = () => {
                   <TabsTrigger value="workouts" className="flex-1 gap-1.5">
                     <Dumbbell className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">Workouts</span>
                   </TabsTrigger>
-                  <TabsTrigger value="notes" className="flex-1 gap-1.5">
-                    <StickyNote className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">Notes</span>
+                  <TabsTrigger value="notes" className="flex-1 gap-1.5 relative">
+                    <StickyNote className="h-3.5 w-3.5 shrink-0" />
+                    <span className="hidden sm:inline">Notes</span>
+                    {selectedAthleteId && unreadAthletes.has(selectedAthleteId) && (
+                      <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-red-500" />
+                    )}
                   </TabsTrigger>
                   <TabsTrigger value="metrics" className="flex-1 gap-1.5">
                     <Activity className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">Metrics</span>

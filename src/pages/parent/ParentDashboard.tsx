@@ -57,6 +57,7 @@ const ParentDashboard = () => {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [absenceSessionId, setAbsenceSessionId] = useState<string | null>(null);
   const [absenceReason, setAbsenceReason] = useState("");
+  const [commsSeenAt, setCommsSeenAt] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -256,6 +257,24 @@ const ParentDashboard = () => {
   const nextSession = dedupedSchedule[0] ?? null;
   const athleteName = athleteProfile ? `${athleteProfile.first_name} ${athleteProfile.last_name}` : "Your Athlete";
   const initials = athleteProfile ? `${athleteProfile.first_name[0]}${athleteProfile.last_name[0]}` : "?";
+
+  // Load comms seen timestamp from localStorage
+  useEffect(() => {
+    if (!user?.id) return;
+    setCommsSeenAt(localStorage.getItem(`parent_comms_seen_${user.id}`));
+  }, [user?.id]);
+
+  const hasUnreadComms = useMemo(() =>
+    (allMessages as any[]).some((m: any) =>
+      m.coach_reply && m.replied_at && (!commsSeenAt || m.replied_at > commsSeenAt)
+    ), [allMessages, commsSeenAt]);
+
+  const markCommsAsRead = () => {
+    if (!user?.id) return;
+    const ts = new Date().toISOString();
+    localStorage.setItem(`parent_comms_seen_${user.id}`, ts);
+    setCommsSeenAt(ts);
+  };
 
   // Sync emergency form from profile
   useEffect(() => {
@@ -510,26 +529,28 @@ const ParentDashboard = () => {
           </button>
 
           {/* Communications */}
-          <button onClick={() => setView("communications")} className="w-full text-left">
-            <Card className="hover:bg-secondary/30 transition-colors active:scale-[0.99]">
+          <button onClick={() => { markCommsAsRead(); setView("communications"); }} className="w-full text-left">
+            <Card className={`hover:bg-secondary/30 transition-colors active:scale-[0.99] ${hasUnreadComms ? "border-violet-500/40" : ""}`}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
-                    <MessageCircle className="h-5 w-5 text-violet-400" />
+                  <div className="relative h-10 w-10 shrink-0">
+                    <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                      <MessageCircle className="h-5 w-5 text-violet-400" />
+                    </div>
+                    {hasUnreadComms && (
+                      <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-red-500 border-2 border-background" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm">Communications</p>
                     <p className="text-xs text-muted-foreground">
-                      {(allMessages as any[]).some((m: any) => m.coach_reply && !m._seen)
+                      {hasUnreadComms
                         ? "Coach replied — tap to read"
                         : (allMessages as any[]).length > 0
                         ? `${(allMessages as any[]).length} message${(allMessages as any[]).length !== 1 ? "s" : ""}`
                         : "Send a message to your coach"}
                     </p>
                   </div>
-                  {(allMessages as any[]).some((m: any) => m.coach_reply) && (
-                    <div className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
-                  )}
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
               </CardContent>
