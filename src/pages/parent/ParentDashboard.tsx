@@ -12,7 +12,7 @@ import {
   Target, Loader2, StickyNote, CheckCircle2, Circle,
   CalendarDays, TrendingUp, Clock, MapPin, Swords,
   MessageCircle, ShieldAlert, Bot, ChevronRight, ArrowLeft,
-  Lock, Send, Sparkles, Phone,
+  Lock, Send, Sparkles, Phone, CalendarX,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -55,6 +55,8 @@ const ParentDashboard = () => {
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [absenceSessionId, setAbsenceSessionId] = useState<string | null>(null);
+  const [absenceReason, setAbsenceReason] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -114,19 +116,52 @@ const ParentDashboard = () => {
     enabled: !!user,
   });
 
-  // 5. Schedule
+  // 5. Schedule — all sessions for this coach (parent sees their athlete's coach's schedule)
+  // Deduplication done client-side below to collapse team sessions into one card
   const { data: schedule = [] } = useQuery({
     queryKey: ["parent-schedule", coachId],
     queryFn: async () => {
       if (!coachId) return [];
       const { data } = await (supabase as any).from("coach_schedule")
-        .select("id, title, date, start_time, session_type, game_opponent, game_home_away, color, notes")
-        .eq("coach_id", coachId).gte("date", today)
-        .order("date", { ascending: true }).limit(30);
+        .select("id, title, scheduled_date, start_time, session_type, game_opponent, game_home_away, color, notes, athlete_id")
+        .eq("coach_id", coachId)
+        .gte("scheduled_date", today)
+        .order("scheduled_date", { ascending: true }).limit(60);
       return data || [];
     },
     enabled: !!coachId,
   });
+
+  // Deduplicate team sessions: keep one representative per (date + title + start_time + color)
+  const dedupedSchedule = useMemo(() => {
+    const seen = new Set<string>();
+    return (schedule as any[]).filter((s: any) => {
+      const key = `${s.scheduled_date}|${s.title}|${s.start_time ?? ""}|${s.color ?? ""}|${s.session_type}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [schedule]);
+
+  // 5b. Already-reported absences for these sessions
+  const { data: absences = [] } = useQuery({
+    queryKey: ["parent-absences", athleteId, user?.id],
+    queryFn: async () => {
+      if (!athleteId || !user) return [];
+      const { data } = await (supabase as any).from("session_absences")
+        .select("id, schedule_id, reason")
+        .eq("athlete_user_id", athleteId)
+        .eq("parent_user_id", user.id);
+      return data || [];
+    },
+    enabled: !!athleteId && !!user,
+  });
+
+  const absencesByScheduleId = useMemo(() => {
+    const map: Record<string, { id: string; reason: string | null }> = {};
+    (absences as any[]).forEach((a: any) => { map[a.schedule_id] = a; });
+    return map;
+  }, [absences]);
 
   // 6. Goals
   const { data: goals = [] } = useQuery({
@@ -218,7 +253,7 @@ const ParentDashboard = () => {
 
   const isPremium = (parentProfile as any)?.ai_premium === true;
   const activeGoal = goals.find((g: any) => !g.completed_at) ?? null;
-  const nextSession = (schedule as any[])[0] ?? null;
+  const nextSession = dedupedSchedule[0] ?? null;
   const athleteName = athleteProfile ? `${athleteProfile.first_name} ${athleteProfile.last_name}` : "Your Athlete";
   const initials = athleteProfile ? `${athleteProfile.first_name[0]}${athleteProfile.last_name[0]}` : "?";
 
@@ -238,6 +273,27 @@ const ParentDashboard = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
+
+  // Report absence
+  const reportAbsenceMutation = useMutation({
+    mutationFn: async ({ scheduleId, reason }: { scheduleId: string; reason: string }) => {
+      if (!user || !athleteId) throw new Error("Missing data");
+      const { error } = await (supabase as any).from("session_absences").insert({
+        schedule_id: scheduleId,
+        athlete_user_id: athleteId,
+        parent_user_id: user.id,
+        reason: reason.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["parent-absences", athleteId, user?.id] });
+      setAbsenceSessionId(null);
+      setAbsenceReason("");
+      toast({ title: "Absence reported", description: "Your coach has been notified." });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
 
   // Submit weekly question
   const submitQuestionMutation = useMutation({
@@ -423,7 +479,7 @@ const ParentDashboard = () => {
                     <p className="font-semibold text-sm">Schedule</p>
                     <p className="text-xs text-muted-foreground truncate">
                       {nextSession
-                        ? `${nextSession.title} · ${formatSessionDate(nextSession.date)}`
+                        ? `${nextSession.title} · ${formatSessionDate(nextSession.scheduled_date)}`
                         : "No upcoming sessions"}
                     </p>
                   </div>
@@ -533,7 +589,7 @@ const ParentDashboard = () => {
           <BackButton />
           <p className="font-bold text-base font-['Space_Grotesk'] mb-4">Upcoming Schedule</p>
           <div className="space-y-3">
-            {(schedule as any[]).length === 0 ? (
+            {dedupedSchedule.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <CalendarDays className="h-9 w-9 mx-auto text-muted-foreground mb-3" />
@@ -543,7 +599,10 @@ const ParentDashboard = () => {
               </Card>
             ) : (
               <>
-                {(isPremium ? schedule : (schedule as any[]).slice(0, 5)).map((session: any) => (
+                {(isPremium ? dedupedSchedule : dedupedSchedule.slice(0, 5)).map((session: any) => {
+                  const alreadyReported = !!absencesByScheduleId[session.id];
+                  const isOpen = absenceSessionId === session.id;
+                  return (
                   <Card key={session.id} className="overflow-hidden">
                     <CardContent className="p-0">
                       <div className="flex items-stretch">
@@ -554,7 +613,7 @@ const ParentDashboard = () => {
                               <p className="font-semibold text-sm leading-tight">{session.title}</p>
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                                 <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <CalendarDays className="h-3 w-3" />{formatSessionDate(session.date)}
+                                  <CalendarDays className="h-3 w-3" />{formatSessionDate(session.scheduled_date)}
                                 </span>
                                 {session.start_time && (
                                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -581,12 +640,61 @@ const ParentDashboard = () => {
                               <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-400 border-blue-500/20 shrink-0">Game</Badge>
                             )}
                           </div>
+
+                          {/* Absence reporting */}
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            {alreadyReported ? (
+                              <div className="flex items-center gap-1.5 text-xs text-orange-400">
+                                <CalendarX className="h-3.5 w-3.5" />
+                                <span>Absence reported</span>
+                                {absencesByScheduleId[session.id]?.reason && (
+                                  <span className="text-muted-foreground">· {absencesByScheduleId[session.id].reason}</span>
+                                )}
+                              </div>
+                            ) : isOpen ? (
+                              <div className="space-y-2">
+                                <Textarea
+                                  placeholder="Reason (optional)"
+                                  value={absenceReason}
+                                  onChange={e => setAbsenceReason(e.target.value)}
+                                  className="min-h-[60px] text-xs"
+                                />
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    className="flex-1 h-7 text-xs"
+                                    onClick={() => reportAbsenceMutation.mutate({ scheduleId: session.id, reason: absenceReason })}
+                                    disabled={reportAbsenceMutation.isPending}
+                                  >
+                                    {reportAbsenceMutation.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                                    Submit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => { setAbsenceSessionId(null); setAbsenceReason(""); }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setAbsenceSessionId(session.id)}
+                                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-orange-400 transition-colors"
+                              >
+                                <CalendarX className="h-3.5 w-3.5" /> Report Absence
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-                {!isPremium && (schedule as any[]).length > 5 && (
+                  );
+                })}
+                {!isPremium && dedupedSchedule.length > 5 && (
                   <PremiumGate feature="See all upcoming sessions with Premium" />
                 )}
               </>

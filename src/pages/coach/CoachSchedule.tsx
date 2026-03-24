@@ -326,6 +326,41 @@ const CoachSchedule = () => {
     }).slice(0, 10);
   }, [schedule, today]);
 
+  // Absence counts for upcoming sessions
+  const upcomingScheduleIds = useMemo(() => upcomingSessions.map((e) => e.id), [upcomingSessions]);
+
+  const { data: upcomingAbsences = [] } = useQuery({
+    queryKey: ["upcoming-absences", user?.id, format(monthStart, "yyyy-MM")],
+    queryFn: async () => {
+      if (!user || upcomingScheduleIds.length === 0) return [];
+      const { data } = await (supabase as any).from("session_absences")
+        .select("schedule_id").in("schedule_id", upcomingScheduleIds);
+      return data || [];
+    },
+    enabled: !!user && upcomingScheduleIds.length > 0,
+  });
+
+  const absenceCountByScheduleId = useMemo(() => {
+    const map: Record<string, number> = {};
+    (upcomingAbsences as any[]).forEach((a: any) => {
+      map[a.schedule_id] = (map[a.schedule_id] ?? 0) + 1;
+    });
+    return map;
+  }, [upcomingAbsences]);
+
+  // For a deduplicated card, sum absences across all schedule rows with the same session key
+  const getAbsenceCount = (entry: ScheduleEntry): number => {
+    const teamKey = entryTeamKey(entry);
+    return schedule
+      .filter((e) =>
+        e.scheduled_date === entry.scheduled_date &&
+        e.title === entry.title &&
+        (e.start_time ?? "") === (entry.start_time ?? "") &&
+        entryTeamKey(e) === teamKey
+      )
+      .reduce((sum, e) => sum + (absenceCountByScheduleId[e.id] ?? 0), 0);
+  };
+
   // Raw map (used for cancel/restore logic that needs per-athlete rows)
   const scheduleByDate = useMemo(() => {
     const map: Record<string, ScheduleEntry[]> = {};
@@ -992,7 +1027,9 @@ const CoachSchedule = () => {
                 <p className="text-xs text-muted-foreground text-center py-4">No upcoming sessions.</p>
               ) : (
                 <div className="space-y-2">
-                  {upcomingSessions.map((entry) => (
+                  {upcomingSessions.map((entry) => {
+                    const absCount = getAbsenceCount(entry);
+                    return (
                     <button
                       key={entry.id}
                       onClick={() => openEditEntry(entry)}
@@ -1003,12 +1040,17 @@ const CoachSchedule = () => {
                           ? <span className="text-sm leading-none shrink-0">{entry.game_home_away === "away" ? "✈️" : "🏠"}</span>
                           : <span className={`w-2 h-2 rounded-full shrink-0 ${getColorClass(entry.color || "default").split(" ")[0]}`} />
                         }
-                        <p className={`text-xs font-medium truncate ${entry.session_type === "game" ? "text-amber-300" : ""}`}>
+                        <p className={`text-xs font-medium truncate flex-1 ${entry.session_type === "game" ? "text-amber-300" : ""}`}>
                           {entry.session_type === "game"
                             ? (entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title)
                             : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
                           }
                         </p>
+                        {absCount > 0 && (
+                          <span className="shrink-0 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full text-[9px] font-semibold bg-orange-500/20 text-orange-400">
+                            {absCount}
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">
                         {format(parseISO(entry.scheduled_date), "EEE, MMM d")}
@@ -1021,7 +1063,8 @@ const CoachSchedule = () => {
                         }
                       </p>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
