@@ -6,7 +6,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ChevronLeft, ChevronRight, Loader2, Clock } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronLeft, ChevronRight, Loader2, Clock, MapPin, Swords } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   addMonths, subMonths, isToday, parseISO, addDays,
@@ -24,6 +25,10 @@ type PracticeSession = {
   notes: string | null;
   color: string | null;
   status: string | null;
+  session_type: string | null;
+  game_opponent: string | null;
+  game_home_away: string | null;
+  game_location: string | null;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -39,6 +44,8 @@ const getPracticeColor = (c: string | null) =>
   PRACTICE_COLOR[c ?? "default"] ?? PRACTICE_COLOR.default;
 
 const formatTime = (t: string | null) => t ? t.slice(0, 5) : null;
+
+const isGame = (p: PracticeSession) => p.session_type === "game";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -59,9 +66,9 @@ const AthleteSchedule = () => {
     queryKey: ["athlete-practice", user?.id, format(monthStart, "yyyy-MM")],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("coach_schedule")
-        .select("id, title, scheduled_date, start_time, end_time, notes, color, status")
+        .select("id, title, scheduled_date, start_time, end_time, notes, color, status, session_type, game_opponent, game_home_away, game_location")
         .eq("athlete_id", user.id)
         .gte("scheduled_date", format(monthStart, "yyyy-MM-dd"))
         .lte("scheduled_date", format(monthEnd, "yyyy-MM-dd"))
@@ -162,15 +169,19 @@ const AthleteSchedule = () => {
                               className={`text-[10px] truncate rounded px-1 py-0.5 border cursor-pointer hover:opacity-80 ${
                                 p.status === "canceled"
                                   ? "bg-secondary/30 border-border text-muted-foreground opacity-60 line-through"
+                                  : isGame(p)
+                                  ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
                                   : getPracticeColor(p.color)
                               }`}
-                              title={`${p.status === "canceled" ? "CANCELED: " : ""}${formatTime(p.start_time) ? formatTime(p.start_time) + " · " : ""}${p.title || "Practice"}`}
                             >
-                              {p.status === "canceled"
-                                ? <span className="not-italic">✕ </span>
-                                : formatTime(p.start_time) && <span className="font-bold">{formatTime(p.start_time)} </span>
-                              }
-                              {p.title || "Practice"}
+                              {p.status === "canceled" ? (
+                                <span className="not-italic">✕ </span>
+                              ) : isGame(p) ? (
+                                <span>{p.game_home_away === "away" ? "✈️" : "🏠"} </span>
+                              ) : (
+                                formatTime(p.start_time) && <span className="font-bold">{formatTime(p.start_time)} </span>
+                              )}
+                              {isGame(p) && p.game_opponent ? `vs. ${p.game_opponent}` : (p.title || "Practice")}
                             </div>
                           ))}
                           {dayPractices.length > 3 && (
@@ -208,10 +219,14 @@ const AthleteSchedule = () => {
                       <div className="flex items-center gap-2">
                         {p.status === "canceled" ? (
                           <span className="text-[10px] font-semibold text-red-400 bg-red-400/10 border border-red-400/20 rounded px-1.5 py-0.5 shrink-0">CANCELED</span>
+                        ) : isGame(p) ? (
+                          <span className="text-sm leading-none shrink-0">{p.game_home_away === "away" ? "✈️" : "🏠"}</span>
                         ) : (
                           <span className={`w-2 h-2 rounded-full shrink-0 ${getPracticeColor(p.color).split(" ")[0]}`} />
                         )}
-                        <p className={`text-xs font-medium truncate ${p.status === "canceled" ? "line-through text-muted-foreground" : ""}`}>{p.title || "Practice"}</p>
+                        <p className={`text-xs font-medium truncate ${p.status === "canceled" ? "line-through text-muted-foreground" : isGame(p) ? "text-amber-300" : ""}`}>
+                          {isGame(p) && p.game_opponent ? `vs. ${p.game_opponent}` : (p.title || "Practice")}
+                        </p>
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">
                         {format(parseISO(p.scheduled_date), "EEE, MMM d")}
@@ -222,6 +237,9 @@ const AthleteSchedule = () => {
                           <span> – {formatTime(p.end_time)}</span>
                         )}
                       </p>
+                      {isGame(p) && p.game_location && (
+                        <p className="text-[10px] text-muted-foreground pl-4 truncate">{p.game_location}</p>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -231,19 +249,27 @@ const AthleteSchedule = () => {
         </div>
       </div>
 
-      {/* Practice detail dialog (read-only) */}
+      {/* Session detail dialog (read-only) */}
       <Dialog open={!!selectedPractice} onOpenChange={(o) => !o && setSelectedPractice(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-['Space_Grotesk'] flex items-center gap-2">
+            <DialogTitle className="font-['Space_Grotesk'] flex items-center gap-2 flex-wrap">
               {selectedPractice?.status === "canceled" && (
                 <span className="text-xs font-semibold text-red-400 bg-red-400/10 border border-red-400/20 rounded px-1.5 py-0.5">CANCELED</span>
               )}
-              <span className={selectedPractice?.status === "canceled" ? "line-through text-muted-foreground" : ""}>{selectedPractice?.title || "Practice"}</span>
+              {selectedPractice && isGame(selectedPractice) && (
+                <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-300 border-amber-500/20">Game</Badge>
+              )}
+              <span className={selectedPractice?.status === "canceled" ? "line-through text-muted-foreground" : ""}>
+                {selectedPractice && isGame(selectedPractice) && selectedPractice.game_opponent
+                  ? `vs. ${selectedPractice.game_opponent}`
+                  : selectedPractice?.title || "Practice"}
+              </span>
             </DialogTitle>
           </DialogHeader>
           {selectedPractice && (
             <div className="space-y-3 text-sm">
+              {/* Date & time */}
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Clock className="h-4 w-4 shrink-0" />
                 <span>
@@ -256,10 +282,40 @@ const AthleteSchedule = () => {
                   )}
                 </span>
               </div>
-              {selectedPractice.notes && (
-                <p className="text-sm text-muted-foreground rounded-lg bg-secondary/30 p-3">{selectedPractice.notes}</p>
+
+              {/* Game details */}
+              {isGame(selectedPractice) && (
+                <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
+                  {selectedPractice.game_opponent && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Swords className="h-4 w-4 text-amber-400 shrink-0" />
+                      <span>vs. <span className="font-semibold">{selectedPractice.game_opponent}</span></span>
+                    </div>
+                  )}
+                  {selectedPractice.game_home_away && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4 shrink-0" />
+                      <span>{selectedPractice.game_home_away === "home" ? "Home game" : selectedPractice.game_home_away === "away" ? "Away game" : "Neutral site"}</span>
+                    </div>
+                  )}
+                  {selectedPractice.game_location && (
+                    <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                      <MapPin className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>{selectedPractice.game_location}</span>
+                    </div>
+                  )}
+                </div>
               )}
-              {!selectedPractice.notes && !formatTime(selectedPractice.start_time) && (
+
+              {/* Coach notes */}
+              {selectedPractice.notes && (
+                <div className="rounded-lg bg-secondary/30 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Coach Note</p>
+                  <p className="text-sm leading-relaxed">{selectedPractice.notes}</p>
+                </div>
+              )}
+
+              {!isGame(selectedPractice) && !selectedPractice.notes && !formatTime(selectedPractice.start_time) && (
                 <p className="text-sm text-muted-foreground">No additional details.</p>
               )}
             </div>

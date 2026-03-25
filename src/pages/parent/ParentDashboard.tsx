@@ -124,7 +124,7 @@ const ParentDashboard = () => {
     queryFn: async () => {
       if (!coachId) return [];
       const { data } = await (supabase as any).from("coach_schedule")
-        .select("id, title, scheduled_date, start_time, session_type, game_opponent, game_home_away, color, notes, athlete_id")
+        .select("id, title, scheduled_date, start_time, session_type, game_opponent, game_home_away, game_location, color, notes, athlete_id")
         .eq("coach_id", coachId)
         .gte("scheduled_date", today)
         .order("scheduled_date", { ascending: true }).limit(60);
@@ -651,9 +651,22 @@ const ParentDashboard = () => {
                                   )}
                                   {session.game_home_away && (
                                     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                      <MapPin className="h-3 w-3" /> {session.game_home_away === "home" ? "Home" : "Away"}
+                                      <MapPin className="h-3 w-3" />
+                                      {session.game_home_away === "home" ? "Home" : session.game_home_away === "away" ? "Away" : "Neutral"}
+                                      {session.game_location && ` · ${session.game_location}`}
                                     </p>
                                   )}
+                                  {!session.game_home_away && session.game_location && (
+                                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <MapPin className="h-3 w-3" /> {session.game_location}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                              {session.notes && (
+                                <div className="mt-2 rounded-md bg-secondary/40 px-2.5 py-1.5">
+                                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Coach Note</p>
+                                  <p className="text-xs leading-relaxed">{session.notes}</p>
                                 </div>
                               )}
                             </div>
