@@ -71,7 +71,11 @@ const Signup = () => {
 
     const token = searchParams.get("parent_token");
     if (token) {
-      // Pre-fill form from invite — readable by anon
+      // Jump to step 2 immediately so the user never sees the role picker.
+      // Pre-fill name/email once the async fetch returns.
+      setSelectedRole("parent");
+      setParentToken(token);
+      setStep(2);
       (supabase as any)
         .from("parent_invites")
         .select("parent_email, parent_name")
@@ -84,9 +88,6 @@ const Signup = () => {
             setEmail(inv.parent_email);
             setFirstName(parts[0] ?? "");
             setLastName(parts.slice(1).join(" ") ?? "");
-            setSelectedRole("parent");
-            setParentToken(token);
-            setStep(2);
           }
         });
     }
