@@ -27,6 +27,7 @@ import ParentDashboard from "./pages/parent/ParentDashboard";
 import ParentBilling from "./pages/parent/ParentBilling";
 import AthleteDashboard from "./pages/athlete/AthleteDashboard";
 import AthleteSchedule from "./pages/athlete/AthleteSchedule";
+import AthleteProfile from "./pages/athlete/AthleteProfile";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -93,6 +94,9 @@ const App = () => (
             } />
             <Route path="/athlete/schedule" element={
               <ProtectedRoute allowedRoles={["athlete"]}><AthleteSchedule /></ProtectedRoute>
+            } />
+            <Route path="/athlete/profile" element={
+              <ProtectedRoute allowedRoles={["athlete"]}><AthleteProfile /></ProtectedRoute>
             } />
             <Route path="/athlete/*" element={
               <ProtectedRoute allowedRoles={["athlete"]}><AthleteDashboard /></ProtectedRoute>

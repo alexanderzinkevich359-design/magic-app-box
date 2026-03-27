@@ -684,6 +684,41 @@ const CoachAthletes = () => {
     enabled: !!user,
   });
 
+  // All linked parents across all of this coach's athletes (for list badges)
+  const { data: allLinkedParents = [] } = useQuery({
+    queryKey: ["all-linked-parents", athletes.map((a: any) => a.athlete_user_id)],
+    queryFn: async () => {
+      if (!athletes.length) return [];
+      const athleteIds = athletes.map((a: any) => a.athlete_user_id);
+      const { data: links } = await (supabase as any)
+        .from("parent_athlete_links")
+        .select("athlete_user_id, parent_user_id")
+        .in("athlete_user_id", athleteIds);
+      if (!links?.length) return [];
+      const parentIds = [...new Set(links.map((l: any) => l.parent_user_id))];
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", parentIds);
+      return links.map((l: any) => {
+        const p = profiles?.find((pr: any) => pr.user_id === l.parent_user_id);
+        return { athlete_user_id: l.athlete_user_id, name: p ? `${p.first_name} ${p.last_name}`.trim() : "Parent" };
+      });
+    },
+    enabled: athletes.length > 0,
+  });
+
+  // Map athleteId → parent names
+  const parentsByAthlete = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const lp of allLinkedParents as any[]) {
+      const arr = map.get(lp.athlete_user_id) ?? [];
+      arr.push(lp.name);
+      map.set(lp.athlete_user_id, arr);
+    }
+    return map;
+  }, [allLinkedParents]);
+
   // Linked parents for selected athlete
   const { data: linkedParents = [] } = useQuery({
     queryKey: ["linked-parents", selectedAthleteId],
@@ -945,7 +980,7 @@ const CoachAthletes = () => {
                             <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="text-sm text-muted-foreground">{athlete.position || "No position"}</span>
                           {sportConfigMap.get(athlete.sport_id)?.session_config.hasHandTracking && athlete.throw_hand && (
                             <Badge variant="outline" className="text-[10px]">Throws: {athlete.throw_hand}</Badge>
@@ -953,6 +988,11 @@ const CoachAthletes = () => {
                           {sportConfigMap.get(athlete.sport_id)?.session_config.hasHandTracking && athlete.bat_hand && (
                             <Badge variant="outline" className="text-[10px]">Bats: {athlete.bat_hand}</Badge>
                           )}
+                          {(parentsByAthlete.get(athlete.athlete_user_id) ?? []).map((parentName) => (
+                            <span key={parentName} className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 rounded px-1.5 py-0.5">
+                              <Users className="h-2.5 w-2.5" />{parentName}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     </div>

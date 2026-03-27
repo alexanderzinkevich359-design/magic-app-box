@@ -39,6 +39,7 @@ const roleNavItems: Record<string, NavItem[]> = {
     { label: "Schedule", path: "/athlete/schedule", icon: <Calendar className="h-4 w-4" /> },
     { label: "Metrics", path: "/athlete/metrics", icon: <Activity className="h-4 w-4" /> },
     { label: "Goals", path: "/athlete/goals", icon: <Target className="h-4 w-4" /> },
+    { label: "Profile", path: "/athlete/profile", icon: <Users className="h-4 w-4" /> },
     { label: "Settings", path: "/settings", icon: <Settings className="h-4 w-4" /> },
   ],
 };
