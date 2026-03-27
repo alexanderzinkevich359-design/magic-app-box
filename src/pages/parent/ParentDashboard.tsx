@@ -117,21 +117,19 @@ const ParentDashboard = () => {
     enabled: !!user,
   });
 
-  // 5. Schedule — all sessions for this coach (parent sees their athlete's coach's schedule)
-  // Deduplication done client-side below to collapse team sessions into one card
+  // 5. Schedule — sessions where this parent's athlete is listed as athlete_id
   const { data: schedule = [] } = useQuery({
-    queryKey: ["parent-schedule", coachId, athleteId],
+    queryKey: ["parent-schedule", athleteId],
     queryFn: async () => {
-      if (!coachId || !athleteId) return [];
+      if (!athleteId) return [];
       const { data } = await (supabase as any).from("coach_schedule")
         .select("id, title, scheduled_date, start_time, session_type, game_opponent, game_home_away, game_location, color, notes, athlete_id")
-        .eq("coach_id", coachId)
         .eq("athlete_id", athleteId)
         .gte("scheduled_date", today)
         .order("scheduled_date", { ascending: true }).limit(60);
       return data || [];
     },
-    enabled: !!coachId && !!athleteId,
+    enabled: !!athleteId,
   });
 
   // Deduplicate team sessions: keep one representative per (date + title + start_time + color)
