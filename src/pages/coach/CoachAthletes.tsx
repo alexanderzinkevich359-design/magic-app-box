@@ -197,6 +197,7 @@ const CoachAthletes = () => {
   const [showParentInviteDialog, setShowParentInviteDialog] = useState(false);
   const [parentInviteName, setParentInviteName] = useState("");
   const [parentInviteEmail, setParentInviteEmail] = useState("");
+  const [confirmRemoveAthleteId, setConfirmRemoveAthleteId] = useState<string | null>(null);
 
   // Parent question reply
   const [replyingQuestionId, setReplyingQuestionId] = useState<string | null>(null);
@@ -901,6 +902,24 @@ const CoachAthletes = () => {
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const removeAthleteMutation = useMutation({
+    mutationFn: async (athleteUserId: string) => {
+      const { error } = await supabase
+        .from("coach_athlete_links")
+        .delete()
+        .eq("coach_user_id", user!.id)
+        .eq("athlete_user_id", athleteUserId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["coach-athletes"] });
+      setSelectedAthleteId(null);
+      setConfirmRemoveAthleteId(null);
+      toast({ title: "Athlete removed from roster" });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const getInviteLink = (email: string) => {
     const baseUrl = window.location.origin;
     return `${baseUrl}/signup?email=${encodeURIComponent(email)}`;
@@ -1174,10 +1193,35 @@ const CoachAthletes = () => {
                       </div>
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <DialogTitle className="font-['Space_Grotesk'] text-xl">
-                      {selectedAthlete.profile ? `${selectedAthlete.profile.first_name} ${selectedAthlete.profile.last_name}` : "Athlete"}
-                    </DialogTitle>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <DialogTitle className="font-['Space_Grotesk'] text-xl">
+                        {selectedAthlete.profile ? `${selectedAthlete.profile.first_name} ${selectedAthlete.profile.last_name}` : "Athlete"}
+                      </DialogTitle>
+                      {confirmRemoveAthleteId === selectedAthlete.athlete_user_id ? (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-xs text-destructive mr-1">Remove?</span>
+                          <Button
+                            size="sm" variant="destructive" className="h-7 text-xs px-2"
+                            onClick={() => removeAthleteMutation.mutate(selectedAthlete.athlete_user_id)}
+                            disabled={removeAthleteMutation.isPending}
+                          >
+                            {removeAthleteMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Yes"}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setConfirmRemoveAthleteId(null)}>
+                            No
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm" variant="ghost"
+                          className="h-7 text-xs text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => setConfirmRemoveAthleteId(selectedAthlete.athlete_user_id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                        </Button>
+                      )}
+                    </div>
                     <DialogDescription>
                       {selectedAthlete.position || athleteSportConfig?.name || ""}
                       {athleteSportConfig?.session_config.hasHandTracking && selectedAthlete.throw_hand && ` · Throws: ${selectedAthlete.throw_hand}`}
