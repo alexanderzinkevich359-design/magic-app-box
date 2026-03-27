@@ -20,7 +20,7 @@ import {
 import {
   Trophy, Dumbbell, Swords, Users, Plus, ChevronRight, ChevronLeft,
   Download, Search, Lock, Loader2, BarChart2, ChevronUp, ChevronDown,
-  Sparkles, CheckSquare, Square,
+  Sparkles, CheckSquare, Square, Pencil,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -47,6 +47,7 @@ interface GameEvent {
   result: string | null;
   score_us: number | null;
   score_them: number | null;
+  set_scores: { us: number; them: number }[] | null;
   notes: string | null;
   sport_id: string | null;
   team_id: string | null;
@@ -124,7 +125,7 @@ function CoachGameLogInner() {
   // ── Shared queries ──────────────────────────────────────────────────────────
 
   const { data: teams = [] } = useQuery({
-    queryKey: ["coach-teams", user?.id],
+    queryKey: ["coach-teams-simple", user?.id],
     queryFn: async () => {
       if (!user) return [];
       const { data } = await (supabase as any)
@@ -181,6 +182,10 @@ function CoachGameLogInner() {
   const [selectedAthletes, setSelectedAthletes] = useState<Set<string>>(new Set());
   // stat entry: athleteId -> group -> key -> value
   const [statValues, setStatValues] = useState<Record<string, Record<string, Record<string, string>>>>({});
+  // set score entry for set-based sports
+  const [formSetScores, setFormSetScores] = useState<{ us: string; them: string }[]>([{ us: "", them: "" }]);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [editModeAthletes, setEditModeAthletes] = useState<{ id: string; name: string; position: string }[]>([]);
 
   const isCompetitive = formEventType !== "practice";
   const selectedSportConfig = sportConfigs.find((s) => s.id === formSportId) ?? null;
@@ -188,6 +193,8 @@ function CoachGameLogInner() {
   const statGroupEntries = getStatGroupEntries(statGroups);
   const derivedDefs = (statGroups.derived as DerivedStatDef[] | undefined) ?? [];
   const [activeStatGroup, setActiveStatGroup] = useState<string>("");
+  const hasSets = selectedSportConfig?.session_config?.hasSets ?? false;
+  const maxSets = selectedSportConfig?.session_config?.maxSets ?? 5;
 
   const resetForm = useCallback(() => {
     setStep(1);
@@ -204,6 +211,9 @@ function CoachGameLogInner() {
     setSelectedAthletes(new Set());
     setStatValues({});
     setActiveStatGroup("");
+    setFormSetScores([{ us: "", them: "" }]);
+    setEditingEventId(null);
+    setEditModeAthletes([]);
   }, []);
 
   // Team athletes for step 2
@@ -237,37 +247,68 @@ function CoachGameLogInner() {
     enabled: !!formTeamId,
   });
 
+  // When editing, merge athletes from the original event with the current team roster
+  const displayAthletes = useMemo(() => {
+    if (!editingEventId || editModeAthletes.length === 0) return teamAthletes as { id: string; name: string; position: string }[];
+    const knownIds = new Set(editModeAthletes.map((a) => a.id));
+    return [
+      ...editModeAthletes,
+      ...(teamAthletes as { id: string; name: string; position: string }[]).filter((a) => !knownIds.has(a.id)),
+    ];
+  }, [editingEventId, editModeAthletes, teamAthletes]);
+
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ wasEdit: boolean }> => {
       if (!user) throw new Error("Not logged in");
 
-      // 1. Insert game_events row
-      const { data: eventRow, error: evErr } = await (supabase as any)
-        .from("game_events")
-        .insert({
-          coach_id: user.id,
-          team_id: formTeamId || null,
-          sport_id: formSportId || null,
-          event_type: formEventType,
-          event_date: formDate,
-          opponent: formOpponent || null,
-          location: formLocation || null,
-          result: formResult || null,
-          score_us: formScoreUs ? parseInt(formScoreUs, 10) : null,
-          score_them: formScoreThem ? parseInt(formScoreThem, 10) : null,
-          notes: formNotes || null,
-        })
-        .select("id")
-        .single();
-      if (evErr) throw evErr;
-      const eventId = eventRow.id as string;
+      const eventPayload = {
+        team_id: formTeamId || null,
+        sport_id: formSportId || null,
+        event_type: formEventType,
+        event_date: formDate,
+        opponent: formOpponent || null,
+        location: formLocation || null,
+        result: formResult || null,
+        score_us: formScoreUs ? parseInt(formScoreUs, 10) : null,
+        score_them: formScoreThem ? parseInt(formScoreThem, 10) : null,
+        set_scores: (hasSets && formSetScores.some((s) => s.us !== "" || s.them !== ""))
+          ? formSetScores
+              .filter((s) => s.us !== "" || s.them !== "")
+              .map((s) => ({ us: parseInt(s.us || "0", 10), them: parseInt(s.them || "0", 10) }))
+          : null,
+        notes: formNotes || null,
+      };
 
-      // 2. Build stat rows
+      let eventId: string;
+
+      if (editingEventId) {
+        const { error: updErr } = await (supabase as any)
+          .from("game_events")
+          .update(eventPayload)
+          .eq("id", editingEventId)
+          .eq("coach_id", user.id);
+        if (updErr) throw updErr;
+        eventId = editingEventId;
+        // Clear existing stats before re-inserting
+        await (supabase as any)
+          .from("game_athlete_stats")
+          .delete()
+          .eq("event_id", eventId);
+      } else {
+        const { data: eventRow, error: evErr } = await (supabase as any)
+          .from("game_events")
+          .insert({ coach_id: user.id, ...eventPayload })
+          .select("id")
+          .single();
+        if (evErr) throw evErr;
+        eventId = eventRow.id as string;
+      }
+
+      // Build stat rows
       const statsToInsert: any[] = [];
-      const athleteList = teamAthletes.filter((a: any) => selectedAthletes.has(a.id));
+      const athleteList = displayAthletes.filter((a) => selectedAthletes.has(a.id));
 
       if (!isCompetitive) {
-        // Practice → attendance only
         for (const a of athleteList) {
           statsToInsert.push({
             event_id: eventId,
@@ -300,14 +341,16 @@ function CoachGameLogInner() {
       if (statsToInsert.length > 0) {
         const { error: sErr } = await (supabase as any)
           .from("game_athlete_stats")
-          .upsert(statsToInsert, { onConflict: "event_id,athlete_id,stat_group,stat_key" });
+          .insert(statsToInsert);
         if (sErr) throw sErr;
       }
+
+      return { wasEdit: !!editingEventId };
     },
-    onSuccess: () => {
+    onSuccess: ({ wasEdit }) => {
       queryClient.invalidateQueries({ queryKey: ["game-events", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["season-stats", user?.id] });
-      toast({ title: "Event saved", description: "The event has been logged successfully." });
+      toast({ title: wasEdit ? "Event updated" : "Event saved", description: "The event has been logged successfully." });
       resetForm();
       setTab("events");
     },
@@ -417,6 +460,67 @@ function CoachGameLogInner() {
     } finally {
       setInsightLoading(false);
     }
+  }
+
+  // ─── Start editing an existing event ──────────────────────────────────────
+
+  async function startEditing(ev: GameEvent) {
+    setEditingEventId(ev.id);
+    setFormEventType(ev.event_type);
+    setFormDate(ev.event_date);
+    setFormTeamId(ev.team_id ?? "");
+    setFormSportId(ev.sport_id ?? "");
+    setFormOpponent(ev.opponent ?? "");
+    setFormLocation(ev.location ?? "");
+    setFormResult((ev.result ?? "") as ResultType);
+    setFormScoreUs(ev.score_us != null ? String(ev.score_us) : "");
+    setFormScoreThem(ev.score_them != null ? String(ev.score_them) : "");
+    setFormNotes(ev.notes ?? "");
+    setFormSetScores(
+      ev.set_scores?.length
+        ? ev.set_scores.map((s) => ({ us: String(s.us), them: String(s.them) }))
+        : [{ us: "", them: "" }]
+    );
+    const { data: existingStats } = await (supabase as any)
+      .from("game_athlete_stats")
+      .select("athlete_id, stat_group, stat_key, value")
+      .eq("event_id", ev.id);
+    const newStatValues: Record<string, Record<string, Record<string, string>>> = {};
+    const newSelectedAthletes = new Set<string>();
+    for (const row of (existingStats ?? []) as AthleteStatRow[]) {
+      newSelectedAthletes.add(row.athlete_id);
+      if (row.stat_group === "attendance") continue;
+      if (!newStatValues[row.athlete_id]) newStatValues[row.athlete_id] = {};
+      if (!newStatValues[row.athlete_id][row.stat_group]) newStatValues[row.athlete_id][row.stat_group] = {};
+      newStatValues[row.athlete_id][row.stat_group][row.stat_key] = String(row.value);
+    }
+    setStatValues(newStatValues);
+    setSelectedAthletes(newSelectedAthletes);
+    // Fetch athlete profiles so step 2 shows them even if the event had no team
+    const athleteIdsList = [...newSelectedAthletes];
+    if (athleteIdsList.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", athleteIdsList);
+      const { data: links } = await supabase
+        .from("coach_athlete_links")
+        .select("athlete_user_id, position")
+        .in("athlete_user_id", athleteIdsList);
+      const linkMap = Object.fromEntries((links ?? []).map((l: any) => [l.athlete_user_id, l.position]));
+      setEditModeAthletes(
+        (profiles ?? []).map((p: any) => ({
+          id: p.user_id,
+          name: `${p.first_name} ${p.last_name}`,
+          position: linkMap[p.user_id] ?? "",
+        }))
+      );
+    } else {
+      setEditModeAthletes([]);
+    }
+    setActiveStatGroup("");
+    setStep(1);
+    setTab("log");
   }
 
   // ─── Season Stats tab ──────────────────────────────────────────────────────
@@ -623,6 +727,11 @@ function CoachGameLogInner() {
                             {ev.score_us != null && ev.score_them != null && ` ${ev.score_us}–${ev.score_them}`}
                           </Badge>
                         )}
+                        {ev.set_scores && Array.isArray(ev.set_scores) && ev.set_scores.length > 0 && (
+                          <span className="text-xs text-muted-foreground font-mono">
+                            ({(ev.set_scores as { us: number; them: number }[]).map((s) => `${s.us}–${s.them}`).join(", ")})
+                          </span>
+                        )}
                       </div>
                       {ev.location && (
                         <p className="text-xs text-muted-foreground mt-0.5">{ev.location}</p>
@@ -632,6 +741,9 @@ function CoachGameLogInner() {
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
                         <Users className="h-3.5 w-3.5" /> {ev.athlete_count}
                       </span>
+                      <Button size="sm" variant="outline" onClick={() => startEditing(ev)}>
+                        <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => {
                         setViewStatsEvent(ev);
                         setActiveViewGroup("");
@@ -653,6 +765,7 @@ function CoachGameLogInner() {
           <Card>
             <CardHeader>
               <CardTitle className="font-['Space_Grotesk'] flex items-center gap-2">
+                {editingEventId ? "Edit Event" : "Log Event"}
                 <span className="text-muted-foreground text-sm font-normal">Step {step} of {isCompetitive ? 3 : 2}</span>
               </CardTitle>
             </CardHeader>
@@ -713,7 +826,7 @@ function CoachGameLogInner() {
 
                     <div>
                       <Label htmlFor="ev-sport">Sport</Label>
-                      <Select value={formSportId} onValueChange={(v) => { setFormSportId(v); setActiveStatGroup(""); }}>
+                      <Select value={formSportId} onValueChange={(v) => { setFormSportId(v); setActiveStatGroup(""); setFormSetScores([{ us: "", them: "" }]); }}>
                         <SelectTrigger id="ev-sport" className="mt-1">
                           <SelectValue placeholder="Select sport…" />
                         </SelectTrigger>
@@ -766,6 +879,57 @@ function CoachGameLogInner() {
                     </div>
                   )}
 
+                  {/* Set scores for set-based sports (volleyball, tennis) */}
+                  {isCompetitive && hasSets && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-sm font-medium">
+                          Set Scores <span className="text-muted-foreground text-xs font-normal">(optional)</span>
+                        </Label>
+                        {formSetScores.length < maxSets && (
+                          <button
+                            type="button"
+                            onClick={() => setFormSetScores((prev) => [...prev, { us: "", them: "" }])}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            <Plus className="h-3 w-3" /> Add Set
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        {formSetScores.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-12 shrink-0">Set {i + 1}</span>
+                            <Input
+                              type="number" min="0"
+                              value={s.us}
+                              onChange={(e) => setFormSetScores((prev) => prev.map((x, j) => j === i ? { ...x, us: e.target.value } : x))}
+                              className="w-16 h-8 text-center px-1"
+                              placeholder="0"
+                            />
+                            <span className="text-muted-foreground">–</span>
+                            <Input
+                              type="number" min="0"
+                              value={s.them}
+                              onChange={(e) => setFormSetScores((prev) => prev.map((x, j) => j === i ? { ...x, them: e.target.value } : x))}
+                              className="w-16 h-8 text-center px-1"
+                              placeholder="0"
+                            />
+                            {formSetScores.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => setFormSetScores((prev) => prev.filter((_, j) => j !== i))}
+                                className="text-muted-foreground hover:text-destructive text-sm leading-none ml-1"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <Label htmlFor="ev-notes">Notes (optional)</Label>
                     <Textarea id="ev-notes" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="Any additional notes…" className="mt-1 min-h-[80px]" />
@@ -786,30 +950,30 @@ function CoachGameLogInner() {
                     <p className="text-sm text-muted-foreground">
                       {isCompetitive ? "Select athletes who played in this event." : "Mark attendance for this practice."}
                     </p>
-                    {teamAthletes.length > 0 && (
+                    {displayAthletes.length > 0 && (
                       <button
                         onClick={() => {
-                          if (selectedAthletes.size === teamAthletes.length) {
+                          if (selectedAthletes.size === displayAthletes.length) {
                             setSelectedAthletes(new Set());
                           } else {
-                            setSelectedAthletes(new Set(teamAthletes.map((a: any) => a.id)));
+                            setSelectedAthletes(new Set(displayAthletes.map((a) => a.id)));
                           }
                         }}
                         className="text-xs text-primary hover:underline"
                       >
-                        {selectedAthletes.size === teamAthletes.length ? "Deselect all" : "Select all"}
+                        {selectedAthletes.size === displayAthletes.length ? "Deselect all" : "Select all"}
                       </button>
                     )}
                   </div>
 
-                  {teamAthletes.length === 0 && (
+                  {displayAthletes.length === 0 && (
                     <p className="text-sm text-muted-foreground py-4 text-center">
                       {formTeamId ? "No athletes found on this team." : "No team selected — athletes won't be pre-populated. Select a team in step 1 to load the roster."}
                     </p>
                   )}
 
                   <div className="space-y-2">
-                    {teamAthletes.map((a: any) => {
+                    {displayAthletes.map((a) => {
                       const checked = selectedAthletes.has(a.id);
                       return (
                         <button
@@ -845,7 +1009,7 @@ function CoachGameLogInner() {
                     ) : (
                       <Button onClick={() => saveMutation.mutate()} disabled={selectedAthletes.size === 0 || saveMutation.isPending}>
                         {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        Save Practice
+                        {editingEventId ? "Update Practice" : "Save Practice"}
                       </Button>
                     )}
                   </div>
@@ -904,12 +1068,16 @@ function CoachGameLogInner() {
                             </tr>
                           </thead>
                           <tbody>
-                            {teamAthletes
-                              .filter((a: any) => selectedAthletes.has(a.id))
-                              .map((a: any) => {
+                            {displayAthletes
+                              .filter((a) => selectedAthletes.has(a.id))
+                              .map((a) => {
                                 const defs = statGroupEntries.find(([k]) => k === activeStatGroup)?.[1] ?? [];
                                 const currentStats: Record<string, number> = {};
-                                for (const [grp, keys] of Object.entries(statValues[a.id] ?? {})) {
+                                // Seed all defined keys to 0 so derived formulas work when a stat is zero
+                                for (const [, groupDefs] of statGroupEntries) {
+                                  for (const def of groupDefs) currentStats[def.key] = 0;
+                                }
+                                for (const [, keys] of Object.entries(statValues[a.id] ?? {})) {
                                   for (const [k, v] of Object.entries(keys as Record<string, string>)) {
                                     const n = parseFloat(v);
                                     if (!isNaN(n)) currentStats[k] = n;
@@ -942,6 +1110,40 @@ function CoachGameLogInner() {
                                   </tr>
                                 );
                               })}
+                            {/* Team totals row */}
+                            {(() => {
+                              const activeDefs = statGroupEntries.find(([k]) => k === activeStatGroup)?.[1] ?? [];
+                              const teamTotals: Record<string, number> = {};
+                              for (const [, groupDefs] of statGroupEntries) {
+                                for (const def of groupDefs) teamTotals[def.key] = 0;
+                              }
+                              for (const a of displayAthletes.filter((a) => selectedAthletes.has(a.id))) {
+                                for (const [, keys] of Object.entries(statValues[a.id] ?? {})) {
+                                  for (const [k, v] of Object.entries(keys as Record<string, string>)) {
+                                    const n = parseFloat(v);
+                                    if (!isNaN(n)) teamTotals[k] = (teamTotals[k] ?? 0) + n;
+                                  }
+                                }
+                              }
+                              return (
+                                <tr className="border-t-2 bg-secondary/40">
+                                  <td className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Team</td>
+                                  {activeDefs.map((def) => (
+                                    <td key={def.key} className="px-2 py-2 text-center font-semibold text-sm">
+                                      {teamTotals[def.key] ?? 0}
+                                    </td>
+                                  ))}
+                                  {derivedDefs.map((d) => {
+                                    const val = evalDerivedStat(d.formula, teamTotals);
+                                    return (
+                                      <td key={d.key} className="px-2 py-2 text-center font-semibold text-xs font-mono">
+                                        {val !== null ? (d.precision === 3 ? formatBattingAvg(val) : val.toFixed(d.precision)) : "—"}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })()}
                           </tbody>
                         </table>
                       </div>
@@ -954,7 +1156,7 @@ function CoachGameLogInner() {
                     </Button>
                     <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
                       {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Save Event
+                      {editingEventId ? "Update Event" : "Save Event"}
                     </Button>
                   </div>
                 </div>
@@ -1108,6 +1310,16 @@ function CoachGameLogInner() {
                       ` ${viewStatsEvent.score_us}–${viewStatsEvent.score_them}`}
                   </Badge>
                 )}
+                {viewStatsEvent.set_scores && Array.isArray(viewStatsEvent.set_scores) && viewStatsEvent.set_scores.length > 0 && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-xs text-muted-foreground">Sets:</span>
+                    {viewStatsEvent.set_scores.map((s, i) => (
+                      <span key={i} className="text-xs font-mono bg-secondary/60 border border-border rounded px-1.5 py-0.5">
+                        {s.us}–{s.them}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {viewStatsEvent.location && (
                   <span className="text-xs text-muted-foreground">{viewStatsEvent.location}</span>
                 )}
@@ -1178,7 +1390,12 @@ function CoachGameLogInner() {
                       <tbody>
                         {viewAthleteIds.map((athleteId) => {
                           const ap = viewAthleteProfiles.find((p) => p.user_id === athleteId);
-                          const stats = athleteStatsMap[athleteId] ?? {};
+                          // Seed all defined keys to 0 so derived formulas work when a stat is zero
+                          const stats: Record<string, number> = {};
+                          for (const [, groupDefs] of viewGroupEntries) {
+                            for (const def of groupDefs) stats[def.key] = 0;
+                          }
+                          Object.assign(stats, athleteStatsMap[athleteId] ?? {});
                           return (
                             <tr key={athleteId} className="border-b last:border-b-0 hover:bg-secondary/20">
                               <td className="px-3 py-2 font-medium whitespace-nowrap">
@@ -1225,6 +1442,37 @@ function CoachGameLogInner() {
                             </tr>
                           );
                         })}
+                        {/* Team totals row */}
+                        {(() => {
+                          const teamTotals: Record<string, number> = {};
+                          for (const [, groupDefs] of viewGroupEntries) {
+                            for (const def of groupDefs) teamTotals[def.key] = 0;
+                          }
+                          for (const aid of viewAthleteIds) {
+                            for (const [k, v] of Object.entries(athleteStatsMap[aid] ?? {})) {
+                              teamTotals[k] = (teamTotals[k] ?? 0) + v;
+                            }
+                          }
+                          return (
+                            <tr className="border-t-2 bg-secondary/40">
+                              <td className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Team</td>
+                              {currentGroupDefs.map((def) => (
+                                <td key={def.key} className="px-2 py-2 text-center font-semibold text-sm">
+                                  {teamTotals[def.key] ?? 0}
+                                </td>
+                              ))}
+                              {viewDerived.map((d) => {
+                                const val = evalDerivedStat(d.formula, teamTotals);
+                                return (
+                                  <td key={d.key} className="px-2 py-2 text-center font-semibold text-xs font-mono">
+                                    {val !== null ? (d.precision === 3 ? formatBattingAvg(val) : val.toFixed(d.precision)) : "—"}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-2 py-2" />
+                            </tr>
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>

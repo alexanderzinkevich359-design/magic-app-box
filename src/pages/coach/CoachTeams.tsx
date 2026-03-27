@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -174,8 +174,17 @@ const CoachTeams = () => {
     return a ? `${a.first_name} ${a.last_name}`.trim() : "Unknown Athlete";
   };
 
-  const athletesNotOnTeam = (team: Team) =>
-    roster.filter((a) => !team.members.some((m) => m.athlete_user_id === a.athlete_user_id));
+  // Athletes already assigned to any team — hide them in the "Add" tab to prevent double-booking
+  const allTeamMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const team of teams) {
+      for (const m of team.members) ids.add(m.athlete_user_id);
+    }
+    return ids;
+  }, [teams]);
+
+  const athletesNotOnTeam = (_team: Team) =>
+    roster.filter((a) => !allTeamMemberIds.has(a.athlete_user_id));
 
   // ── Render ───────────────────────────────────────────────────────────────────
   if (teamsLoading) {
@@ -378,7 +387,7 @@ const CoachTeams = () => {
                     <p className="text-sm text-muted-foreground text-center py-6">
                       {roster.length === 0
                         ? "You have no athletes on your roster yet."
-                        : "All your athletes are already on this team."}
+                        : "All your athletes are already assigned to a team."}
                     </p>
                   ) : (
                     athletesNotOnTeam(selectedTeam).map((athlete) => (

@@ -77,6 +77,10 @@ export interface SportSessionConfig {
   throwLabelByPosition?: Record<string, string>;
   /** Per-position override for reps label */
   repsLabelByPosition?: Record<string, string>;
+  /** Whether this sport uses sets (e.g. volleyball, tennis) */
+  hasSets?: boolean;
+  /** Maximum number of sets that can be entered */
+  maxSets?: number;
 }
 
 export interface SportConfig {
@@ -122,6 +126,8 @@ export function parseSportConfig(row: any): SportConfig {
       throwLabel: sc.throwLabel ?? null,
       throwLabelByPosition: sc.throwLabelByPosition ?? {},
       repsLabelByPosition: sc.repsLabelByPosition ?? {},
+      hasSets: sc.hasSets ?? false,
+      maxSets: sc.maxSets ?? 5,
     },
     game_stat_groups: (row.game_stat_groups as GameStatGroups) ?? {},
   };
