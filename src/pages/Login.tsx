@@ -74,7 +74,7 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <Link to="/" className="mx-auto mb-4 flex items-center justify-center hover:opacity-80 transition-opacity">
-            <img src="/logo.png" alt="ClipMVP" className="h-12 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
+            <img src="/logo.png" alt="ClipMVP" className="h-12 w-auto [filter:drop-shadow(0_0_0px_2px_white)_drop-shadow(0_0_6px_4px_rgba(255,255,255,0.6))_drop-shadow(0_0_2px_1px_white)]" />
           </Link>
           <CardTitle className="text-2xl font-['Space_Grotesk']">Welcome Back</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>

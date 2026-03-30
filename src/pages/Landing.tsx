@@ -141,7 +141,7 @@ const Landing = () => {
       <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-lg">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center">
-            <img src="/logo.png" alt="ClipMVP" className="h-9 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
+            <img src="/logo.png" alt="ClipMVP" className="h-9 w-auto [filter:drop-shadow(0_0_0px_2px_white)_drop-shadow(0_0_6px_4px_rgba(255,255,255,0.6))_drop-shadow(0_0_2px_1px_white)]" />
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -458,7 +458,7 @@ const Landing = () => {
       <footer className="border-t py-10">
         <div className="mx-auto max-w-6xl px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center">
-            <img src="/logo.png" alt="ClipMVP" className="h-7 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
+            <img src="/logo.png" alt="ClipMVP" className="h-7 w-auto [filter:drop-shadow(0_0_0px_2px_white)_drop-shadow(0_0_6px_4px_rgba(255,255,255,0.6))_drop-shadow(0_0_2px_1px_white)]" />
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
