@@ -191,11 +191,9 @@ export default function TermsOfService() {
 
         <h2 style={s.h2}>11. Governing Law</h2>
         <p style={s.p}>
-          These Terms are governed by and construed in accordance with the laws of the{" "}
-          <span style={s.placeholder}>State of [Your State] [replace]</span>, United States, without regard to
-          its conflict of law provisions. Any disputes arising under these Terms shall be subject to the
-          exclusive jurisdiction of the courts located in{" "}
-          <span style={s.placeholder}>[Your City, State] [replace]</span>.
+          These Terms are governed by and construed in accordance with the laws of the United States, without
+          regard to its conflict of law provisions. Any disputes arising under these Terms shall be subject to
+          the exclusive jurisdiction of the courts located in the United States.
         </p>
 
         <h2 style={s.h2}>12. Changes to These Terms</h2>
@@ -209,8 +207,8 @@ export default function TermsOfService() {
         <p style={s.p}>If you have questions about these Terms, please contact us at:</p>
         <div style={s.highlight}>
           <strong style={s.strong}>Clipmvp</strong><br />
-          Email: <span style={s.placeholder}>legal@clipmvp.com [replace with your email]</span><br />
-          Website: <span style={s.placeholder}>www.clipmvp.com [replace with your domain]</span>
+          Email: <a href="mailto:legal@clipmvp.com" style={s.a}>legal@clipmvp.com</a><br />
+          Website: <a href="https://www.clipmvp.com" style={s.a}>www.clipmvp.com</a>
         </div>
 
         <footer style={s.footer}>
