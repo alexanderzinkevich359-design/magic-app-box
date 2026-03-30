@@ -125,11 +125,8 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
     <div className="min-h-screen bg-background">
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-card px-4 py-3 lg:hidden">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-            <Target className="h-4 w-4 text-primary-foreground" />
-          </div>
-          <span className="font-semibold font-['Space_Grotesk']">ClipMVP</span>
+        <div className="flex items-center">
+          <img src="/logo.png" alt="ClipMVP" className="h-8 w-auto" />
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -159,11 +156,8 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
       <div className="flex">
         {/* Desktop sidebar */}
         <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 border-r bg-card">
-          <div className="flex items-center gap-2 px-6 py-5 border-b">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <Target className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-semibold font-['Space_Grotesk']">ClipMVP</span>
+          <div className="flex items-center px-6 py-5 border-b">
+            <img src="/logo.png" alt="ClipMVP" className="h-8 w-auto" />
           </div>
           <div className="px-4 py-4">
             <div className="mb-4 px-3">

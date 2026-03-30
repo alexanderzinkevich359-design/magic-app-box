@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Target, Loader2, Eye, EyeOff } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,11 +73,8 @@ const Login = () => {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <Link to="/" className="mx-auto mb-4 flex items-center gap-2 justify-center hover:opacity-80 transition-opacity">
-            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center">
-              <Target className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="text-2xl font-bold font-['Space_Grotesk']">ClipMVP</span>
+          <Link to="/" className="mx-auto mb-4 flex items-center justify-center hover:opacity-80 transition-opacity">
+            <img src="/logo.png" alt="ClipMVP" className="h-12 w-auto" />
           </Link>
           <CardTitle className="text-2xl font-['Space_Grotesk']">Welcome Back</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
