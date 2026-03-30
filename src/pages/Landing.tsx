@@ -141,7 +141,7 @@ const Landing = () => {
       <nav className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-lg">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center">
-            <img src="/logo.png" alt="ClipMVP" className="h-9 w-auto" />
+            <img src="/logo.png" alt="ClipMVP" className="h-9 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -458,7 +458,7 @@ const Landing = () => {
       <footer className="border-t py-10">
         <div className="mx-auto max-w-6xl px-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center">
-            <img src="/logo.png" alt="ClipMVP" className="h-7 w-auto" />
+            <img src="/logo.png" alt="ClipMVP" className="h-7 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
           </div>
           <div className="flex items-center gap-6 text-sm text-muted-foreground">
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
@@ -466,7 +466,13 @@ const Landing = () => {
             <Link to="/signup" className="hover:text-foreground transition-colors">Get Started</Link>
             <Link to="/login" className="hover:text-foreground transition-colors">Sign In</Link>
           </div>
-          <p className="text-sm text-muted-foreground">&copy; 2026 ClipMVP. All rights reserved.</p>
+          <div className="flex flex-col items-center md:items-end gap-1">
+            <p className="text-sm text-muted-foreground">&copy; 2026 ClipMVP. All rights reserved.</p>
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
