@@ -126,7 +126,7 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
       {/* Mobile header */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b bg-card px-4 py-3 lg:hidden">
         <div className="flex items-center">
-          <img src="/logo.png" alt="ClipMVP" className="h-8 w-auto [filter:drop-shadow(0_0_0px_2px_white)_drop-shadow(0_0_6px_4px_rgba(255,255,255,0.6))_drop-shadow(0_0_2px_1px_white)]" />
+          <img src="/logo.png" alt="ClipMVP" className="h-8 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -157,7 +157,7 @@ const DashboardLayout = ({ role, children }: DashboardLayoutProps) => {
         {/* Desktop sidebar */}
         <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 border-r bg-card">
           <div className="flex items-center px-6 py-5 border-b">
-            <img src="/logo.png" alt="ClipMVP" className="h-8 w-auto [filter:drop-shadow(0_0_0px_2px_white)_drop-shadow(0_0_6px_4px_rgba(255,255,255,0.6))_drop-shadow(0_0_2px_1px_white)]" />
+            <img src="/logo.png" alt="ClipMVP" className="h-8 w-auto [filter:drop-shadow(0_0_3px_white)_drop-shadow(0_0_1px_white)]" />
           </div>
           <div className="px-4 py-4">
             <div className="mb-4 px-3">
