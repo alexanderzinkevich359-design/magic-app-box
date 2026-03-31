@@ -31,6 +31,7 @@ import AthleteProfile from "./pages/athlete/AthleteProfile";
 import Settings from "./pages/Settings";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import DataDeletion from "./pages/DataDeletion";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/data-deletion" element={<DataDeletion />} />
             <Route path="/coach" element={
               <ProtectedRoute allowedRoles={["coach"]}><CoachDashboard /></ProtectedRoute>
             } />
