@@ -181,8 +181,8 @@ export default function PrivacyPolicy() {
         <p style={s.p}>If you have questions or concerns about this Privacy Policy or our data practices, please contact us at:</p>
         <div style={s.highlight}>
           <strong style={s.strong}>Clipmvp</strong><br />
-          Email: <span style={s.placeholder}>legal@clipmvp.com [replace with your email]</span><br />
-          Website: <span style={s.placeholder}>www.clipmvp.com [replace with your domain]</span>
+          Email: <a href="mailto:legal@clipmvp.com" style={s.a}>legal@clipmvp.com</a><br />
+          Website: <a href="https://www.clipmvp.com" style={s.a}>www.clipmvp.com</a>
         </div>
 
         <footer style={s.footer}>
