@@ -145,13 +145,29 @@ const SpotlightStudio = () => {
   const [publishing, setPublishing] = useState(false);
   const [scheduling, setScheduling] = useState(false);
 
-  // Show connected toast if redirected from OAuth
+  // Show connected toast if redirected from OAuth (same-tab fallback)
   useEffect(() => {
     if (searchParams.get("connected") === "true") {
       toast({ title: "Connected!", description: "Your Facebook & Instagram account is now linked." });
+      queryClient.invalidateQueries({ queryKey: ["social-connection"] });
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, setSearchParams, toast]);
+  }, [searchParams, setSearchParams, toast, queryClient]);
+
+  // Listen for postMessage from OAuth popup tab
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "spotlight_connected") {
+        queryClient.invalidateQueries({ queryKey: ["social-connection"] });
+        toast({ title: "Connected!", description: "Your account is now linked." });
+      } else if (e.data?.type === "spotlight_error") {
+        toast({ title: "Connection failed", description: e.data.message, variant: "destructive" });
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [queryClient, toast]);
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -253,7 +269,8 @@ const SpotlightStudio = () => {
   const handleConnectMeta = (choices: string[] = platformChoice) => {
     if (!fbAppId) return;
     const state = crypto.randomUUID();
-    sessionStorage.setItem("spotlight_oauth_state", state);
+    // Use localStorage so the new tab can read it (sessionStorage is not shared)
+    localStorage.setItem("spotlight_oauth_state", state);
     const redirectUri = encodeURIComponent(`${window.location.origin}/coach/spotlight/callback`);
     const withInstagram = choices.includes("instagram");
     const scope = encodeURIComponent(
@@ -261,7 +278,8 @@ const SpotlightStudio = () => {
         ? "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management"
         : "pages_manage_posts,pages_read_engagement,business_management"
     );
-    window.location.href = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code`;
+    const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code`;
+    window.open(url, "_blank");
   };
 
   const disconnectMutation = useMutation({
