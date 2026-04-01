@@ -1094,8 +1094,10 @@ function CoachGameLogInner() {
                                           step="any"
                                           value={statValues[a.id]?.[activeStatGroup]?.[def.key] ?? ""}
                                           onChange={(e) => setStatVal(a.id, activeStatGroup, def.key, e.target.value)}
+                                          onFocus={(e) => e.target.select()}
+                                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                                           className="w-16 text-center h-8 px-1"
-                                          placeholder="0"
+                                          placeholder=""
                                         />
                                       </td>
                                     ))}
