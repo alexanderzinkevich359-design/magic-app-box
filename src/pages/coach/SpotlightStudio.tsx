@@ -106,6 +106,9 @@ const SpotlightStudio = () => {
   const [showAIModal, setShowAIModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  // Platform selection for OAuth connection
+  const [platformChoice, setPlatformChoice] = useState<string[]>(["facebook", "instagram"]);
+
   // Tabs
   const [mainTab, setMainTab] = useState<"create" | "history">("create");
 
@@ -247,12 +250,17 @@ const SpotlightStudio = () => {
 
   // ── OAuth ──────────────────────────────────────────────────────────────────
 
-  const handleConnectMeta = () => {
+  const handleConnectMeta = (choices: string[] = platformChoice) => {
     if (!fbAppId) return;
     const state = crypto.randomUUID();
     sessionStorage.setItem("spotlight_oauth_state", state);
     const redirectUri = encodeURIComponent(`${window.location.origin}/coach/spotlight/callback`);
-    const scope = encodeURIComponent("pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management");
+    const withInstagram = choices.includes("instagram");
+    const scope = encodeURIComponent(
+      withInstagram
+        ? "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management"
+        : "pages_manage_posts,pages_read_engagement,business_management"
+    );
     window.location.href = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code`;
   };
 
@@ -508,65 +516,154 @@ const SpotlightStudio = () => {
       </div>
 
       {/* Social connection panel */}
-      <Card className="mb-6">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-['Space_Grotesk'] flex items-center gap-2">
-            <Link2 className="h-4 w-4" /> Social Connection
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {connLoading ? (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-            </div>
-          ) : socialConn ? (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium flex items-center gap-1.5">
-                  <Facebook className="h-4 w-4 text-blue-400" />
-                  {socialConn.facebook_page_name}
-                </p>
-                {socialConn.instagram_username ? (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Instagram className="h-4 w-4 text-pink-400" />
-                    @{socialConn.instagram_username}
-                  </p>
-                ) : (
-                  <p className="text-xs text-yellow-400 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" /> No Instagram Business account linked to this Page.
-                  </p>
-                )}
+      <div className="mb-8 flex justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader className="pb-3 text-center">
+            <CardTitle className="text-base font-['Space_Grotesk'] flex items-center justify-center gap-2">
+              <Link2 className="h-4 w-4" /> Connect Your Accounts
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Choose which platforms to connect for publishing</p>
+          </CardHeader>
+          <CardContent>
+            {connLoading ? (
+              <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm py-4">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading…
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => disconnectMutation.mutate()}
-                disabled={disconnectMutation.isPending}
-              >
-                {disconnectMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <X className="h-3 w-3 mr-1" />}
-                Disconnect
-              </Button>
-            </div>
-          ) : fbAppId ? (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <p className="text-sm text-muted-foreground">Connect your Facebook Page and Instagram Business account to publish posts.</p>
-              <Button size="sm" onClick={handleConnectMeta}>
-                <Facebook className="h-4 w-4 mr-2" /> Connect Facebook & Instagram
-              </Button>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-2">
-              <p className="text-sm font-medium text-yellow-400 flex items-center gap-1.5">
-                <AlertCircle className="h-4 w-4" /> Setup required
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Set <code className="bg-secondary px-1 rounded">VITE_FACEBOOK_APP_ID</code> in your <code className="bg-secondary px-1 rounded">.env</code> file and add{" "}
-                <code className="bg-secondary px-1 rounded">{window.location.origin}/coach/spotlight/callback</code> as a Valid OAuth Redirect URI in your Meta App.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : socialConn ? (
+              /* ── Connected state ── */
+              <div className="space-y-3">
+                <div className="rounded-xl border bg-secondary/30 p-4 space-y-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
+                      <Facebook className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium leading-tight">{socialConn.facebook_page_name}</p>
+                      <p className="text-[11px] text-emerald-400 flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 className="h-3 w-3" /> Connected
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-lg bg-pink-500/15 flex items-center justify-center shrink-0">
+                      <Instagram className="h-4 w-4 text-pink-400" />
+                    </div>
+                    <div>
+                      {socialConn.instagram_username ? (
+                        <>
+                          <p className="text-sm font-medium leading-tight">@{socialConn.instagram_username}</p>
+                          <p className="text-[11px] text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <CheckCircle2 className="h-3 w-3" /> Connected
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-muted-foreground leading-tight">Instagram</p>
+                          <p className="text-[11px] text-yellow-400 flex items-center gap-1 mt-0.5">
+                            <AlertCircle className="h-3 w-3" /> No Business account linked to this Page
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => disconnectMutation.mutate()}
+                  disabled={disconnectMutation.isPending}
+                >
+                  {disconnectMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : <X className="h-3 w-3 mr-1.5" />}
+                  Disconnect Accounts
+                </Button>
+              </div>
+            ) : fbAppId ? (
+              /* ── Platform chooser ── */
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Facebook card */}
+                  <button
+                    onClick={() => setPlatformChoice(prev =>
+                      prev.includes("facebook") && prev.length > 1
+                        ? prev.filter(p => p !== "facebook")
+                        : prev.includes("facebook") ? prev : [...prev, "facebook"]
+                    )}
+                    className={`relative rounded-xl border-2 p-4 text-center transition-all ${
+                      platformChoice.includes("facebook")
+                        ? "border-blue-500/60 bg-blue-500/10"
+                        : "border-border bg-secondary/20 opacity-60"
+                    }`}
+                  >
+                    {platformChoice.includes("facebook") && (
+                      <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-blue-500 flex items-center justify-center">
+                        <CheckCircle2 className="h-3 w-3 text-white" />
+                      </span>
+                    )}
+                    <Facebook className="h-7 w-7 text-blue-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold">Facebook</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Page posts</p>
+                  </button>
+
+                  {/* Instagram card */}
+                  <button
+                    onClick={() => setPlatformChoice(prev =>
+                      prev.includes("instagram") && prev.length > 1
+                        ? prev.filter(p => p !== "instagram")
+                        : prev.includes("instagram") ? prev : [...prev, "instagram"]
+                    )}
+                    className={`relative rounded-xl border-2 p-4 text-center transition-all ${
+                      platformChoice.includes("instagram")
+                        ? "border-pink-500/60 bg-pink-500/10"
+                        : "border-border bg-secondary/20 opacity-60"
+                    }`}
+                  >
+                    {platformChoice.includes("instagram") && (
+                      <span className="absolute top-2 right-2 h-4 w-4 rounded-full bg-pink-500 flex items-center justify-center">
+                        <CheckCircle2 className="h-3 w-3 text-white" />
+                      </span>
+                    )}
+                    <Instagram className="h-7 w-7 text-pink-400 mx-auto mb-2" />
+                    <p className="text-sm font-semibold">Instagram</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Business account</p>
+                  </button>
+                </div>
+
+                <p className="text-[11px] text-muted-foreground text-center">
+                  {platformChoice.length === 2
+                    ? "Both platforms selected"
+                    : platformChoice.includes("instagram")
+                    ? "Instagram requires a Facebook Page to connect"
+                    : "Facebook Page only"}
+                </p>
+
+                <Button
+                  className="w-full"
+                  onClick={() => handleConnectMeta(platformChoice)}
+                  disabled={platformChoice.length === 0}
+                >
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Connect {platformChoice.includes("facebook") && platformChoice.includes("instagram")
+                    ? "Facebook & Instagram"
+                    : platformChoice.includes("instagram")
+                    ? "Instagram (via Facebook)"
+                    : "Facebook"}
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-4 space-y-2">
+                <p className="text-sm font-medium text-yellow-400 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4" /> Setup required
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Set <code className="bg-secondary px-1 rounded">VITE_FACEBOOK_APP_ID</code> in your environment and add{" "}
+                  <code className="bg-secondary px-1 rounded">{window.location.origin}/coach/spotlight/callback</code> as a Valid OAuth Redirect URI in your Meta App.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Main tabs */}
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "create" | "history")}>
