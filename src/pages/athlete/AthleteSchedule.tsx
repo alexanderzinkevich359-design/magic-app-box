@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { formatDisplayTime } from "@/lib/utils";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,14 +45,14 @@ const PRACTICE_COLOR: Record<string, string> = {
 const getPracticeColor = (c: string | null) =>
   PRACTICE_COLOR[c ?? "default"] ?? PRACTICE_COLOR.default;
 
-const formatTime = (t: string | null) => t ? t.slice(0, 5) : null;
-
 const isGame = (p: PracticeSession) => p.session_type === "game";
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const AthleteSchedule = () => {
   const { user } = useAuth();
+  const timeFormat = useTimeFormat();
+  const formatTime = (t: string | null) => t ? formatDisplayTime(t, timeFormat) : null;
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedPractice, setSelectedPractice] = useState<PracticeSession | null>(null);
 

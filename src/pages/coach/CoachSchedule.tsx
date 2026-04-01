@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSportConfigById, usePrimarySportId } from "@/hooks/useSportConfig";
 import { useToast } from "@/hooks/use-toast";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { formatDisplayTime } from "@/lib/utils";
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval, getDay,
   addMonths, subMonths, isToday, addDays, parseISO, isBefore,
@@ -127,6 +129,7 @@ const isTeamInSeason = (t: TeamOption): boolean => {
 const CoachSchedule = () => {
   const { user, profile } = useAuth();
   const isTeamCoach = profile?.coach_type === "team";
+  const timeFormat = useTimeFormat();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -912,11 +915,11 @@ const CoachSchedule = () => {
                                 entry.session_type === "game"
                                   ? `${entry.game_home_away === "away" ? "✈️" : "🏠"} ${entry.game_opponent ? `vs. ${entry.game_opponent}` : entry.title}${entry.game_location ? ` · ${entry.game_location}` : ""}`
                                   : entry.title || getTeamForAthlete(entry.athlete_id)?.name || "Practice"
-                              } ${entry.start_time ? `at ${entry.start_time.slice(0, 5)}` : ""}`}
+                              } ${entry.start_time ? `at ${formatDisplayTime(entry.start_time, timeFormat)}` : ""}`}
                             >
                               {entry.status === "canceled"
                                 ? <span className="not-italic">✕ </span>
-                                : entry.start_time && <span className="font-medium">{entry.start_time.slice(0, 5)} </span>
+                                : entry.start_time && <span className="font-medium">{formatDisplayTime(entry.start_time, timeFormat)} </span>
                               }
                               {entry.session_type === "game"
                                 ? <>
@@ -1054,7 +1057,7 @@ const CoachSchedule = () => {
                       </div>
                       <p className="text-[10px] text-muted-foreground mt-0.5 pl-5">
                         {format(parseISO(entry.scheduled_date), "EEE, MMM d")}
-                        {entry.start_time && ` · ${entry.start_time.slice(0, 5)}`}
+                        {entry.start_time && ` · ${formatDisplayTime(entry.start_time, timeFormat)}`}
                       </p>
                       <p className="text-[10px] text-muted-foreground pl-4">
                         {entry.session_type === "game"

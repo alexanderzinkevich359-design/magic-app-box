@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Pencil, Check, X, ShieldCheck, User, Info } from "lucide-react";
+import { Loader2, Pencil, Check, X, ShieldCheck, User, Info, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Settings = () => {
@@ -26,6 +26,9 @@ const Settings = () => {
   const [dob, setDob] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
+  // Preferences
+  const [timeFormat, setTimeFormat] = useState<"12h" | "24h">("12h");
+
   // Password change state
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -34,9 +37,9 @@ const Settings = () => {
   const { data: fullProfile, isLoading } = useQuery({
     queryKey: ["settings-profile", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("profiles")
-        .select("first_name, last_name, phone, date_of_birth, avatar_url, tier, created_at")
+        .select("first_name, last_name, phone, date_of_birth, avatar_url, tier, created_at, time_format")
         .eq("user_id", user!.id)
         .single();
       if (error) throw error;
@@ -53,6 +56,7 @@ const Settings = () => {
     setPhone(fullProfile.phone ?? "");
     setDob(fullProfile.date_of_birth ?? "");
     setAvatarUrl(fullProfile.avatar_url ?? null);
+    setTimeFormat((fullProfile as any).time_format ?? "12h");
   }, [fullProfile]);
 
   const saveProfile = useMutation({
@@ -75,6 +79,27 @@ const Settings = () => {
     },
     onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+
+  const saveTimeFormat = useMutation({
+    mutationFn: async (fmt: "12h" | "24h") => {
+      const { error } = await (supabase as any)
+        .from("profiles")
+        .update({ time_format: fmt })
+        .eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, fmt) => {
+      queryClient.invalidateQueries({ queryKey: ["time-format"] });
+      queryClient.invalidateQueries({ queryKey: ["settings-profile"] });
+      toast({ title: `Time format set to ${fmt === "12h" ? "12-hour" : "24-hour"}` });
+    },
+    onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const handleTimeFormatChange = (fmt: "12h" | "24h") => {
+    setTimeFormat(fmt);
+    saveTimeFormat.mutate(fmt);
+  };
 
   const changePassword = useMutation({
     mutationFn: async () => {
@@ -200,6 +225,49 @@ const Settings = () => {
                 editing={editing}
                 input={<Input type="date" value={dob} onChange={(e) => setDob(e.target.value)} className="h-8 text-sm" />}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Preferences Card */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base font-['Space_Grotesk']">Preferences</CardTitle>
+            </div>
+            <CardDescription>Customize how information is displayed</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Time Format</p>
+                <p className="text-xs text-muted-foreground mt-0.5">How times appear on schedules and sessions</p>
+              </div>
+              <div className="flex gap-1 rounded-md border p-0.5 bg-muted">
+                <button
+                  onClick={() => handleTimeFormatChange("12h")}
+                  disabled={saveTimeFormat.isPending}
+                  className={`px-3 py-1.5 text-sm rounded font-medium transition-colors ${
+                    timeFormat === "12h"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  12h
+                </button>
+                <button
+                  onClick={() => handleTimeFormatChange("24h")}
+                  disabled={saveTimeFormat.isPending}
+                  className={`px-3 py-1.5 text-sm rounded font-medium transition-colors ${
+                    timeFormat === "24h"
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  24h
+                </button>
+              </div>
             </div>
           </CardContent>
         </Card>

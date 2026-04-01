@@ -21,6 +21,8 @@ import AIPremiumModal from "@/components/AIPremiumModal";
 import AIGate from "@/components/AIGate";
 import { useAllSportConfigs, buildSportConfigMap } from "@/hooks/useSportConfig";
 import { generateTeamInsights } from "@/lib/ai/insightsService";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { formatDisplayTime } from "@/lib/utils";
 import type { AIOutput } from "@/lib/ai/types";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,6 +65,7 @@ const STATUS_STYLES: Record<string, string> = {
 const CoachDashboard = () => {
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const timeFormat = useTimeFormat();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
@@ -717,7 +720,7 @@ const CoachDashboard = () => {
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="h-3 w-3" />
                       <span>Next: {format(new Date(athlete.next_session.date), "MMM d")}
-                        {athlete.next_session.time && ` at ${athlete.next_session.time.slice(0, 5)}`}
+                        {athlete.next_session.time && ` at ${formatDisplayTime(athlete.next_session.time, timeFormat)}`}
                       </span>
                     </div>
                   )}

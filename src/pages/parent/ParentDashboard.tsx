@@ -17,6 +17,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useTimeFormat } from "@/hooks/useTimeFormat";
+import { formatDisplayTime } from "@/lib/utils";
 
 type View = "home" | "schedule" | "development" | "communications" | "emergency" | "assistant";
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -43,6 +45,7 @@ function formatSessionDate(dateStr: string): string {
 const ParentDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const timeFormat = useTimeFormat();
   const queryClient = useQueryClient();
 
   const [view, setView] = useState<View>("home");
@@ -664,7 +667,7 @@ const ParentDashboard = () => {
                                 </span>
                                 {session.start_time && (
                                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Clock className="h-3 w-3" />{session.start_time.slice(0, 5)}
+                                    <Clock className="h-3 w-3" />{formatDisplayTime(session.start_time, timeFormat)}
                                   </span>
                                 )}
                               </div>
