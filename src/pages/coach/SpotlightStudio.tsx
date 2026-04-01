@@ -275,8 +275,8 @@ const SpotlightStudio = () => {
     const withInstagram = choices.includes("instagram");
     const scope = encodeURIComponent(
       withInstagram
-        ? "pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,business_management"
-        : "pages_manage_posts,pages_read_engagement,business_management"
+        ? "pages_show_list,pages_read_engagement,pages_manage_posts,instagram_business_basic,instagram_business_content_publish,business_management"
+        : "pages_show_list,pages_read_engagement,pages_manage_posts,business_management"
     );
     const url = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${fbAppId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}&response_type=code`;
     window.open(url, "_blank");
