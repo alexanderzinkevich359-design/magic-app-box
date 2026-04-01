@@ -102,7 +102,8 @@ const ParentDashboard = () => {
     },
     enabled: !!athleteId,
   });
-  const coachId: string | null = (athleteLink as any)?.coach_user_id ?? null;
+  // coachId available if needed for future features
+  // const coachId: string | null = (athleteLink as any)?.coach_user_id ?? null;
 
   // 4. Parent's own profile (premium check + emergency info)
   const { data: parentProfile, refetch: refetchParentProfile } = useQuery({
@@ -117,31 +118,57 @@ const ParentDashboard = () => {
     enabled: !!user,
   });
 
-  // 5. Schedule — sessions where this parent's athlete is listed as athlete_id
-  const { data: schedule = [] } = useQuery({
-    queryKey: ["parent-schedule", athleteId],
+  // 4b. Athlete's team IDs (for team-based schedule visibility)
+  const { data: athleteTeamIds = [], isSuccess: teamIdsFetched } = useQuery({
+    queryKey: ["parent-athlete-team-ids", athleteId],
     queryFn: async () => {
       if (!athleteId) return [];
-      const { data } = await (supabase as any).from("coach_schedule")
-        .select("id, title, scheduled_date, start_time, session_type, game_opponent, game_home_away, game_location, color, notes, athlete_id")
-        .eq("athlete_id", athleteId)
-        .gte("scheduled_date", today)
-        .order("scheduled_date", { ascending: true }).limit(60);
-      return data || [];
+      const { data } = await (supabase as any)
+        .from("team_members")
+        .select("team_id")
+        .eq("athlete_user_id", athleteId);
+      return (data || []).map((m: any) => m.team_id as string);
     },
     enabled: !!athleteId,
   });
 
-  // Deduplicate team sessions: keep one representative per (date + title + start_time + color)
+  // 5. Schedule — sessions directly assigned to athlete OR for any team athlete belongs to
+  const { data: schedule = [] } = useQuery({
+    queryKey: ["parent-schedule", athleteId, athleteTeamIds],
+    queryFn: async () => {
+      if (!athleteId) return [];
+      let q = (supabase as any).from("coach_schedule")
+        .select("id, title, scheduled_date, start_time, session_type, game_opponent, game_home_away, game_location, color, notes, athlete_id, team_id")
+        .gte("scheduled_date", today)
+        .order("scheduled_date", { ascending: true })
+        .limit(120);
+      if (athleteTeamIds.length > 0) {
+        q = q.or(`athlete_id.eq.${athleteId},team_id.in.(${athleteTeamIds.join(",")})`);
+      } else {
+        q = q.eq("athlete_id", athleteId);
+      }
+      const { data } = await q;
+      return data || [];
+    },
+    enabled: !!athleteId && teamIdsFetched,
+  });
+
+  // Deduplicate team sessions: keep one representative per (date + title + start_time + color).
+  // Prefer the athlete's own row so absence reporting works correctly.
   const dedupedSchedule = useMemo(() => {
-    const seen = new Set<string>();
-    return (schedule as any[]).filter((s: any) => {
+    const map = new Map<string, any>();
+    for (const s of (schedule as any[])) {
       const key = `${s.scheduled_date}|${s.title}|${s.start_time ?? ""}|${s.color ?? ""}|${s.session_type}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [schedule]);
+      const existing = map.get(key);
+      // Prefer the row where athlete_id matches the linked athlete
+      if (!existing || s.athlete_id === athleteId) {
+        map.set(key, s);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.scheduled_date < b.scheduled_date ? -1 : a.scheduled_date > b.scheduled_date ? 1 : 0
+    );
+  }, [schedule, athleteId]);
 
   // 5b. Already-reported absences for these sessions
   const { data: absences = [] } = useQuery({
@@ -674,8 +701,8 @@ const ParentDashboard = () => {
                             )}
                           </div>
 
-                          {/* Absence reporting */}
-                          <div className="mt-3 pt-3 border-t border-border/50">
+                          {/* Absence reporting — only for sessions directly assigned to this athlete */}
+                          {session.athlete_id !== athleteId ? null : <div className="mt-3 pt-3 border-t border-border/50">
                             {alreadyReported ? (
                               <div className="flex items-center gap-1.5 text-xs text-orange-400">
                                 <CalendarX className="h-3.5 w-3.5" />
@@ -720,7 +747,7 @@ const ParentDashboard = () => {
                                 <CalendarX className="h-3.5 w-3.5" /> Report Absence
                               </button>
                             )}
-                          </div>
+                          </div>}
                         </div>
                       </div>
                     </CardContent>
