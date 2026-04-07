@@ -18,9 +18,12 @@ import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Trophy, Dumbbell, Swords, Users, Plus, ChevronRight, ChevronLeft,
   Download, Search, Lock, Loader2, BarChart2, ChevronUp, ChevronDown,
-  Sparkles, CheckSquare, Square, Pencil,
+  Sparkles, CheckSquare, Square, Pencil, Settings2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -53,6 +56,7 @@ interface GameEvent {
   team_id: string | null;
   created_at: string;
   athlete_count?: number;
+  stats_by_key?: Record<string, number>;
 }
 
 interface AthleteStatRow {
@@ -122,6 +126,71 @@ function CoachGameLogInner() {
 
   const { data: sportConfigs = [] } = useAllSportConfigs();
 
+  // ── Highlight stat preferences ──────────────────────────────────────────────
+
+  const { data: highlightPrefs = {} } = useQuery<Record<string, string>>({
+    queryKey: ["game-highlight-prefs", user?.id],
+    queryFn: async () => {
+      if (!user) return {};
+      const { data } = await (supabase as any)
+        .from("profiles")
+        .select("game_highlight_stats")
+        .eq("user_id", user.id)
+        .single();
+      return (data?.game_highlight_stats as Record<string, string>) ?? {};
+    },
+    enabled: !!user,
+    staleTime: Infinity,
+  });
+
+  const saveHighlightPref = useMutation({
+    mutationFn: async ({ sportId, statKey }: { sportId: string; statKey: string }) => {
+      const newPrefs = { ...highlightPrefs, [sportId]: statKey };
+      await (supabase as any)
+        .from("profiles")
+        .update({ game_highlight_stats: newPrefs })
+        .eq("user_id", user!.id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["game-highlight-prefs"] }),
+  });
+
+  // Returns { label, value } for the chosen highlight stat of an event, or null
+  const getHighlightStat = (ev: GameEvent): { label: string; value: string } | null => {
+    const cfg = sportConfigs.find((s) => s.id === ev.sport_id);
+    if (!cfg || !ev.stats_by_key) return null;
+    const groups = cfg.game_stat_groups;
+    const derived = (groups.derived as DerivedStatDef[] | undefined) ?? [];
+    const allRegular = getStatGroupEntries(groups).flatMap(([, defs]) => defs);
+    const defaultKey = highlightPrefs[ev.sport_id ?? ""] ?? derived[0]?.key ?? allRegular[0]?.key;
+    if (!defaultKey) return null;
+    const derivedDef = derived.find((d) => d.key === defaultKey);
+    if (derivedDef) {
+      const val = evalDerivedStat(derivedDef.formula, ev.stats_by_key);
+      if (val === null) return null;
+      return {
+        label: derivedDef.label,
+        value: derivedDef.precision === 3 ? formatBattingAvg(val) : val.toFixed(derivedDef.precision),
+      };
+    }
+    const regDef = allRegular.find((d) => d.key === defaultKey);
+    const raw = ev.stats_by_key[defaultKey];
+    if (!regDef || raw == null) return null;
+    return { label: regDef.full, value: String(raw) };
+  };
+
+  // All selectable stat options for a given sport_id (derived first, then regular)
+  const getStatOptions = (sportId: string | null): { key: string; label: string }[] => {
+    const cfg = sportConfigs.find((s) => s.id === sportId);
+    if (!cfg) return [];
+    const groups = cfg.game_stat_groups;
+    const derived = (groups.derived as DerivedStatDef[] | undefined) ?? [];
+    const regular = getStatGroupEntries(groups).flatMap(([, defs]) => defs);
+    return [
+      ...derived.map((d) => ({ key: d.key, label: d.label })),
+      ...regular.map((d) => ({ key: d.key, label: d.full })),
+    ];
+  };
+
   // ── Shared queries ──────────────────────────────────────────────────────────
 
   const { data: teams = [] } = useQuery({
@@ -144,13 +213,18 @@ function CoachGameLogInner() {
       if (!user) return [];
       const { data } = await (supabase as any)
         .from("game_events")
-        .select("*, game_athlete_stats(count)")
+        .select("*, game_athlete_stats(athlete_id, stat_group, stat_key, value)")
         .eq("coach_id", user.id)
         .order("event_date", { ascending: false });
-      return (data ?? []).map((e: any) => ({
-        ...e,
-        athlete_count: Number(e.game_athlete_stats?.[0]?.count ?? 0),
-      })) as GameEvent[];
+      return (data ?? []).map((e: any) => {
+        const rows: { athlete_id: string; stat_key: string; value: number }[] = e.game_athlete_stats ?? [];
+        const statsAgg: Record<string, number> = {};
+        for (const row of rows) {
+          statsAgg[row.stat_key] = (statsAgg[row.stat_key] ?? 0) + Number(row.value);
+        }
+        const athleteCount = new Set(rows.map((r) => r.athlete_id)).size;
+        return { ...e, athlete_count: athleteCount, stats_by_key: statsAgg };
+      }) as GameEvent[];
     },
     enabled: !!user,
   });
@@ -738,9 +812,47 @@ function CoachGameLogInner() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Users className="h-3.5 w-3.5" /> {ev.athlete_count}
-                      </span>
+                      {(() => {
+                        const hs = getHighlightStat(ev);
+                        const opts = getStatOptions(ev.sport_id);
+                        const activeKey = highlightPrefs[ev.sport_id ?? ""] ?? opts[0]?.key;
+                        return (
+                          <div className="flex items-center gap-1">
+                            {hs ? (
+                              <span className="text-xs flex items-center gap-1">
+                                <span className="font-mono font-semibold text-foreground">{hs.value}</span>
+                                <span className="text-muted-foreground">{hs.label}</span>
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Users className="h-3.5 w-3.5" /> {ev.athlete_count}
+                              </span>
+                            )}
+                            {opts.length > 0 && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button className="text-muted-foreground hover:text-foreground transition-colors ml-0.5">
+                                    <Settings2 className="h-3 w-3" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-44 p-1" align="end">
+                                  <p className="text-[10px] text-muted-foreground px-2 py-1 font-medium uppercase tracking-wide">Display Stat</p>
+                                  {opts.map((opt) => (
+                                    <button
+                                      key={opt.key}
+                                      onClick={() => saveHighlightPref.mutate({ sportId: ev.sport_id!, statKey: opt.key })}
+                                      className={`w-full text-left text-xs px-2 py-1.5 rounded hover:bg-secondary transition-colors flex items-center justify-between ${activeKey === opt.key ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                                    >
+                                      {opt.label}
+                                      {activeKey === opt.key && <span className="text-primary">✓</span>}
+                                    </button>
+                                  ))}
+                                </PopoverContent>
+                              </Popover>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <Button size="sm" variant="outline" onClick={() => startEditing(ev)}>
                         <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
                       </Button>
