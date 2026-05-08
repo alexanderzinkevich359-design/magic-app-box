@@ -738,15 +738,15 @@ const CoachSchedule = () => {
   });
 
   const cancelMut = useMutation({
-    mutationFn: async (ids: string[]) => {
+    mutationFn: async ({ ids }: { ids: string[]; sessionType: string }) => {
       const { error } = await supabase.from("coach_schedule").update({ status: "canceled" }).in("id", ids);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_data, { sessionType }) => {
       queryClient.invalidateQueries({ queryKey: ["coach-schedule"] });
       setShowForm(false);
       resetForm();
-      toast({ title: "Practice canceled", description: "Athletes will see it as canceled." });
+      toast({ title: `${sessionType} canceled`, description: "Athletes will see it as canceled." });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -1715,10 +1715,10 @@ const CoachSchedule = () => {
                         variant="outline"
                         size="sm"
                         className="text-orange-400 border-orange-400/40 hover:bg-orange-400/10"
-                        onClick={() => cancelMut.mutate(getGroupIds(editEntry))}
+                        onClick={() => cancelMut.mutate({ ids: getGroupIds(editEntry), sessionType: editEntry?.session_type === "game" ? "Game" : "Practice" })}
                         disabled={cancelMut.isPending}
                       >
-                        {cancelMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="h-3.5 w-3.5 mr-1" />Cancel Practice</>}
+                        {cancelMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><XCircle className="h-3.5 w-3.5 mr-1" />{editEntry?.session_type === "game" ? "Cancel Game" : "Cancel Practice"}</>}
                       </Button>
                     )}
                     <Button

@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
-import { Target, Users, BookOpen, Calendar, TrendingUp, ChevronRight, Check, Zap, UserCircle, Building2 } from "lucide-react";
+import { Target, Users, ChevronRight, Check, Zap, UserCircle, Building2, GripVertical, Bell, AlertTriangle, BarChart2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -22,39 +22,22 @@ const SPORTS = [
   { id: "volleyball", name: "Volleyball", icon: "🏐", available: true  },
 ];
 
-const TUTORIAL_STEPS = [
-  {
-    icon: Users,
-    title: "Invite Your Athletes",
-    description:
-      "Go to the Athletes page and click 'Invite Athlete'. They'll get an email to join your roster.",
-  },
-  {
-    icon: BookOpen,
-    title: "Build Programs & Workouts",
-    description:
-      "Create practice rubrics, assign drills, and give athletes at-home workouts: your digital playbook.",
-  },
-  {
-    icon: Calendar,
-    title: "Schedule Practices",
-    description:
-      "Plan individual or group sessions with recurring options. Your whole week mapped out in seconds.",
-  },
-  {
-    icon: TrendingUp,
-    title: "Track Real Progress",
-    description:
-      "Log sessions, record metrics, and demonstrate measurable improvement to athletes and parents.",
-  },
+const WIDGETS = [
+  { id: "summary",     label: "Team Overview",      desc: "Stats at a glance: athletes, on track, needs attention", Icon: BarChart2   },
+  { id: "athletes",   label: "Athlete Snapshots",   desc: "See every athlete's latest activity and metrics",        Icon: Users       },
+  { id: "alerts",     label: "Smart Alerts",        desc: "Get notified when athletes need attention",              Icon: Bell        },
+  { id: "at_risk",    label: "At-Risk Athletes",    desc: "Focus on athletes who need immediate intervention",      Icon: AlertTriangle},
+  { id: "ai_insights",label: "AI Insights",         desc: "AI-powered coaching recommendations for your team",     Icon: Zap         },
 ];
 
 const CoachOnboarding = ({ userId, firstName }: CoachOnboardingProps) => {
   const [open, setOpen] = useState(false);
-  // Steps: 0=coach type, 1=sport, 2=tutorial, 3=CTA
+  // Steps: 0=coach type, 1=sport, 2=rank widgets, 3=CTA
   const [step, setStep] = useState(0);
   const [coachType, setCoachType] = useState<CoachType>(null);
   const [selectedSport, setSelectedSport] = useState<string | null>(null);
+  const [widgetOrder, setWidgetOrder] = useState<string[]>([]);
+  const dragIndex = useRef<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -65,14 +48,22 @@ const CoachOnboarding = ({ userId, firstName }: CoachOnboardingProps) => {
     }
   }, [userId]);
 
+  const PRIVATE_HUD = ["summary", "athletes", "at_risk", "ai_insights", "alerts"];
+  const TEAM_HUD    = ["summary", "alerts", "at_risk", "ai_insights", "athletes"];
+
   const finish = async (destination?: string) => {
     localStorage.setItem(`clip-onboarded-${userId}`, "1");
     if (selectedSport) localStorage.setItem(`clip-sport-${userId}`, selectedSport);
-    // Persist coach_type to profile
     if (coachType) {
+      const defaultHud = widgetOrder.length > 0
+        ? widgetOrder
+        : coachType === "team" ? TEAM_HUD : PRIVATE_HUD;
       await (supabase as any)
         .from("profiles")
-        .update({ coach_type: coachType })
+        .update({
+          coach_type: coachType,
+          hud_layout_preferences: { widget_order: defaultHud },
+        })
         .eq("user_id", userId);
     }
     setOpen(false);
@@ -82,7 +73,30 @@ const CoachOnboarding = ({ userId, firstName }: CoachOnboardingProps) => {
   const next = () => {
     if (step === 0 && !coachType) return;
     if (step === 1 && !selectedSport) return;
+    // Initialize widget order from coach type defaults when entering step 2
+    if (step === 1) {
+      setWidgetOrder(coachType === "team" ? [...TEAM_HUD] : [...PRIVATE_HUD]);
+    }
     setStep((s) => s + 1);
+  };
+
+  // Drag-and-drop handlers
+  const handleDragStart = (index: number) => {
+    dragIndex.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent, overIndex: number) => {
+    e.preventDefault();
+    if (dragIndex.current === null || dragIndex.current === overIndex) return;
+    const reordered = [...widgetOrder];
+    const [moved] = reordered.splice(dragIndex.current, 1);
+    reordered.splice(overIndex, 0, moved);
+    dragIndex.current = overIndex;
+    setWidgetOrder(reordered);
+  };
+
+  const handleDragEnd = () => {
+    dragIndex.current = null;
   };
 
   const totalSteps = 4;
@@ -107,13 +121,13 @@ const CoachOnboarding = ({ userId, firstName }: CoachOnboardingProps) => {
             <h2 className="text-xl font-bold font-['Space_Grotesk'] tracking-tight">
               {step === 0 && `Welcome, ${firstName || "Coach"}!`}
               {step === 1 && "What sport do you coach?"}
-              {step === 2 && "Here's How It Works"}
+              {step === 2 && "What Matters Most to You?"}
               {step === 3 && "You're All Set!"}
             </h2>
             <p className="text-sm text-muted-foreground mt-1">
               {step === 0 && "Let's personalize your experience. Takes 10 seconds."}
               {step === 1 && "We'll tailor your tools to your sport."}
-              {step === 2 && "Start with athletes. Everything else follows."}
+              {step === 2 && "Drag to rank your dashboard sections by priority."}
               {step === 3 && "ClipMVP is your edge over every other coach."}
             </p>
           </div>
@@ -235,25 +249,48 @@ const CoachOnboarding = ({ userId, firstName }: CoachOnboardingProps) => {
             </div>
           )}
 
-          {/* Step 2: Tutorial walkthrough */}
+          {/* Step 2: Drag-to-rank widget priority */}
           {step === 2 && (
-            <div className="px-6 pt-5 pb-6 space-y-3">
-              {TUTORIAL_STEPS.map((s, i) => (
-                <div key={i} className="flex items-start gap-3 rounded-xl border bg-card p-3.5">
-                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <s.icon className="h-4 w-4 text-primary" />
+            <div className="px-6 pt-4 pb-6 space-y-2">
+              <p className="text-xs text-muted-foreground text-center mb-3">
+                #1 shows at the top of your dashboard
+              </p>
+              {widgetOrder.map((id, index) => {
+                const widget = WIDGETS.find((w) => w.id === id);
+                if (!widget) return null;
+                const { Icon } = widget;
+                return (
+                  <div
+                    key={id}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className="flex items-center gap-3 rounded-xl border bg-card p-3 cursor-grab active:cursor-grabbing select-none transition-opacity"
+                  >
+                    <GripVertical className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                    <span className="text-xs font-bold text-muted-foreground w-4 shrink-0 text-center">
+                      {index + 1}
+                    </span>
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold leading-snug">{widget.label}</p>
+                      <p className="text-xs text-muted-foreground leading-tight truncate">{widget.desc}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold leading-snug">{s.title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                      {s.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              <Button className="w-full mt-1" onClick={next}>
-                Got It <ChevronRight className="h-4 w-4 ml-1" />
+                );
+              })}
+              <Button className="w-full mt-3" onClick={next}>
+                Looks Good <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
+              <button
+                onClick={() => finish()}
+                className="w-full mt-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+              >
+                Skip for now
+              </button>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import CoachOnboarding from "@/components/CoachOnboarding";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import {
   Users, Loader2, AlertTriangle, TrendingUp, Calendar, Target,
   StickyNote, Plus, ChevronRight, Activity, Heart, Clock, Bell,
   X, CheckCircle, Info, ShieldAlert, Sparkles, CheckCircle2, RefreshCw,
+  ChevronUp, ChevronDown,
 } from "lucide-react";
 import { useAIPremium } from "@/hooks/useAIPremium";
 import AIPremiumModal from "@/components/AIPremiumModal";
@@ -319,6 +320,48 @@ const CoachDashboard = () => {
   const [teamInsights, setTeamInsights] = useState<AIOutput | null>(null);
   const [generatingInsights, setGeneratingInsights] = useState(false);
 
+  // ── HUD layout preferences ────────────────────────────────────────────────
+  const PRIVATE_DEFAULT = ["summary", "athletes", "at_risk", "ai_insights", "alerts"];
+  const TEAM_DEFAULT    = ["summary", "alerts", "at_risk", "ai_insights", "athletes"];
+
+  const { data: hudPrefs = {} } = useQuery<Record<string, unknown>>({
+    queryKey: ["hud-layout", user?.id],
+    queryFn: async () => {
+      if (!user) return {};
+      const { data } = await (supabase as any)
+        .from("profiles")
+        .select("hud_layout_preferences")
+        .eq("user_id", user.id)
+        .single();
+      return (data?.hud_layout_preferences as Record<string, unknown>) ?? {};
+    },
+    enabled: !!user,
+    staleTime: Infinity,
+  });
+
+  const saveHudLayout = useMutation({
+    mutationFn: async (prefs: Record<string, unknown>) => {
+      await (supabase as any)
+        .from("profiles")
+        .update({ hud_layout_preferences: prefs })
+        .eq("user_id", user!.id);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["hud-layout"] }),
+  });
+
+  const widgetOrder: string[] = Array.isArray(hudPrefs.widget_order)
+    ? (hudPrefs.widget_order as string[])
+    : profile?.coach_type === "team" ? TEAM_DEFAULT : PRIVATE_DEFAULT;
+
+  const moveWidget = useCallback((id: string, dir: -1 | 1) => {
+    const idx = widgetOrder.indexOf(id);
+    const next = idx + dir;
+    if (next < 0 || next >= widgetOrder.length) return;
+    const newOrder = [...widgetOrder];
+    [newOrder[idx], newOrder[next]] = [newOrder[next], newOrder[idx]];
+    saveHudLayout.mutate({ ...hudPrefs, widget_order: newOrder });
+  }, [widgetOrder, hudPrefs, saveHudLayout]);
+
   // Summary stats
   const onTrack = snapshots.filter((s) => s.status_color === "green").length;
   const needsAttention = snapshots.filter((s) => s.status_color === "yellow" || s.status_color === "orange" || s.status_color === "red").length;
@@ -378,29 +421,40 @@ const CoachDashboard = () => {
         </div>
       )}
 
-      {/* Summary strip */}
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 mb-8">
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <Users className="h-5 w-5 text-primary" />
-          <div><p className="text-2xl font-bold font-['Space_Grotesk']">{snapshots.length}</p><p className="text-xs text-muted-foreground">Athletes</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <TrendingUp className="h-5 w-5 text-emerald-400" />
-          <div><p className="text-2xl font-bold font-['Space_Grotesk']">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-400" />
-          <div><p className="text-2xl font-bold font-['Space_Grotesk']">{needsAttention}</p><p className="text-xs text-muted-foreground">Needs Attention</p></div>
-        </CardContent></Card>
-        <Card><CardContent className="p-4 flex items-center gap-3">
-          <Heart className="h-5 w-5 text-red-400" />
-          <div><p className="text-2xl font-bold font-['Space_Grotesk']">{injured}</p><p className="text-xs text-muted-foreground">Injured / Sore</p></div>
-        </CardContent></Card>
-      </div>
+      {/* HUD — sections ordered per coach preference. Hover any section to reorder. */}
+      {widgetOrder.map((id, idx) => {
+        const isFirst = idx === 0;
+        const isLast = idx === widgetOrder.length - 1;
+        let content: React.ReactNode;
 
-      {/* Smart Alerts Center */}
-      {alerts.length > 0 && showAlerts && (
-        <Card className="mb-8 border-amber-500/30">
+        switch (id) {
+          case "summary":
+            content = (
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <Users className="h-5 w-5 text-primary" />
+                  <div><p className="text-2xl font-bold font-['Space_Grotesk']">{snapshots.length}</p><p className="text-xs text-muted-foreground">Athletes</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <TrendingUp className="h-5 w-5 text-emerald-400" />
+                  <div><p className="text-2xl font-bold font-['Space_Grotesk']">{onTrack}</p><p className="text-xs text-muted-foreground">On Track</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-400" />
+                  <div><p className="text-2xl font-bold font-['Space_Grotesk']">{needsAttention}</p><p className="text-xs text-muted-foreground">Needs Attention</p></div>
+                </CardContent></Card>
+                <Card><CardContent className="p-4 flex items-center gap-3">
+                  <Heart className="h-5 w-5 text-red-400" />
+                  <div><p className="text-2xl font-bold font-['Space_Grotesk']">{injured}</p><p className="text-xs text-muted-foreground">Injured / Sore</p></div>
+                </CardContent></Card>
+              </div>
+            );
+            break;
+
+          case "alerts":
+            if (!alerts.length || !showAlerts) return null;
+            content = (
+              <Card className="border-amber-500/30">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -455,11 +509,13 @@ const CoachDashboard = () => {
             })}
           </CardContent>
         </Card>
-      )}
+            );
+            break;
 
-      {/* At-Risk Athletes panel (AI Premium) */}
-      {snapshots.length > 0 && (
-        <div className="mb-8">
+          case "at_risk":
+            if (!snapshots.length) return null;
+            content = (
+              <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold font-['Space_Grotesk'] flex items-center gap-2">
               <ShieldAlert className="h-4 w-4 text-amber-400" /> At-Risk Athletes
@@ -495,15 +551,17 @@ const CoachDashboard = () => {
             )}
           </AIGate>
         </div>
-      )}
+            );
+            break;
 
-      {/* AI Insights section */}
-      {snapshots.length > 0 && (
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold font-['Space_Grotesk'] flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-violet-400" /> AI Insights
-            </h2>
+          case "ai_insights":
+            if (!snapshots.length) return null;
+            content = (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold font-['Space_Grotesk'] flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-violet-400" /> AI Insights
+                  </h2>
             {aiEnabled ? (
               <Button
                 variant="ghost"
@@ -644,10 +702,12 @@ const CoachDashboard = () => {
             )}
           </AIGate>
         </div>
-      )}
+            );
+            break;
 
-      {/* Athlete cards */}
-      {isLoading ? (
+          case "athletes":
+            content = (
+              isLoading ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
       ) : snapshots.length === 0 ? (
         <Card><CardContent className="py-16 text-center">
@@ -735,7 +795,29 @@ const CoachDashboard = () => {
             </Card>
           ))}
         </div>
-      )}
+              )
+            );
+            break;
+
+          default:
+            return null;
+        }
+        return (
+          <div key={id} className="mb-8 relative group/widget">
+            <div className="absolute -right-1 top-0 flex gap-0.5 opacity-0 group-hover/widget:opacity-100 transition-opacity z-10">
+              <button onClick={() => moveWidget(id, -1)} disabled={isFirst}
+                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/60 hover:text-foreground disabled:opacity-20 bg-background border">
+                <ChevronUp className="h-3 w-3" />
+              </button>
+              <button onClick={() => moveWidget(id, 1)} disabled={isLast}
+                className="h-5 w-5 flex items-center justify-center rounded text-muted-foreground/60 hover:text-foreground disabled:opacity-20 bg-background border">
+                <ChevronDown className="h-3 w-3" />
+              </button>
+            </div>
+            {content}
+          </div>
+        );
+      })}
 
       {/* Detail dialog */}
       <Dialog open={!!selected} onOpenChange={(open) => { if (!open) setSelectedId(null); }}>

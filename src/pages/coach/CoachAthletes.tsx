@@ -12,10 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Plus, StickyNote, Target, ChevronRight, ChevronLeft, Loader2, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, X, RefreshCw, Copy, Film, Activity, Sparkles, Lock, BookOpen, BookMarked, AlertTriangle, TrendingUp, ShieldAlert, UserPlus, MessageSquare, QrCode, Pencil, Check } from "lucide-react";
+import { Users, Plus, StickyNote, Target, ChevronRight, ChevronLeft, Loader2, Dumbbell, Trash2, Video, Mail, Clock, CheckCircle2, XCircle, X, RefreshCw, Copy, Film, Activity, Sparkles, Lock, BookOpen, BookMarked, AlertTriangle, TrendingUp, ShieldAlert, UserPlus, MessageSquare, QrCode, Pencil, Check, ListChecks } from "lucide-react";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
 import AthleteVideoSubmissions from "@/components/AthleteVideoSubmissions";
+import AthleteWeeklyGoals from "@/components/AthleteWeeklyGoals";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -1267,6 +1268,9 @@ const CoachAthletes = () => {
                   <TabsTrigger value="reflections" className="flex-1 gap-1.5">
                     <BookOpen className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">Reflect</span>
                   </TabsTrigger>
+                  <TabsTrigger value="weekly" className="flex-1 gap-1.5">
+                    <ListChecks className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">Goals</span>
+                  </TabsTrigger>
                   <TabsTrigger value="ai" className="flex-1 gap-1.5">
                     <Sparkles className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">AI</span>
                   </TabsTrigger>
@@ -2111,6 +2115,14 @@ const CoachAthletes = () => {
                   <ImprovementVideos
                     athleteId={selectedAthlete.athlete_user_id}
                     coachId={user?.id}
+                  />
+                </TabsContent>
+
+                {/* Weekly Goals Tab — read-only coach view */}
+                <TabsContent value="weekly" className="mt-4">
+                  <AthleteWeeklyGoals
+                    athleteId={selectedAthleteId ?? undefined}
+                    viewOnly
                   />
                 </TabsContent>
 

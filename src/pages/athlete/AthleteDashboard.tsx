@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Target, Dumbbell, CheckCircle2, Loader2, Video, Mail, UserPlus, Plus, BookOpen } from "lucide-react";
 import WeeklyReflectionForm from "@/components/WeeklyReflectionForm";
+import AthleteWeeklyGoals from "@/components/AthleteWeeklyGoals";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import AvatarUpload from "@/components/AvatarUpload";
 import ImprovementVideos from "@/components/ImprovementVideos";
@@ -363,6 +364,11 @@ const AthleteDashboard = () => {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Weekly Goals */}
+      <div className="mb-8">
+        <AthleteWeeklyGoals />
       </div>
 
       {/* Two-column layout: Performance Overview + At-Home Workouts */}
